@@ -146,6 +146,8 @@ class Environment:
         # ------------------------------------------------------------------
         return new_state, reward, terminated, truncated
 
+    ## TODO There are two get_reward functions?!?!?!
+
     def get_reward(self, vel_target: float) -> float:
         """
         Calculates the reward for the current state.
@@ -157,7 +159,7 @@ class Environment:
         reward = -self.alpha * (error**2)  # squared error
         return reward
 
-    # En Environment.py
+    # In Environment.py
 
     def get_reward(self, vel_target: float) -> float:
         """
@@ -202,10 +204,10 @@ class Environment:
         """
         Sets the environment's state variables to a random initial configuration.
         """
-        # Genera un estado inicial aleatorio
+        # Generates a random initial state
         self.sample_init_state()
 
-        # Calciula la velocidad inicial
+        # Calculates the initial velocity
         self.vel, _ = self.transition_function_model.predict_PG(
             self.ice_sp, self.EM2, self.torque, self.brk
         )
@@ -217,26 +219,26 @@ class Environment:
         This method uses reservoir sampling to select a row in a single pass,
         which is memory-efficient for large files.
         """
-        # 1) Listar CSVs
+        # 1) List CSVs
         csv_files = [f for f in os.listdir(folder_path) if f.endswith(".csv")]
         if not csv_files:
             raise FileNotFoundError(f"No se encontraron archivos CSV en {folder_path}")
 
         chosen_file = os.path.join(folder_path, random.choice(csv_files))
 
-        # 2) Reservoir sampling: escoge 1 fila al azar en una pasada
+        # 2) Reservoir sampling: choose 1 row at random in one pass
         chosen_row = None
         with open(chosen_file, newline="") as f:
             reader = csv.DictReader(f)
             for i, row in enumerate(reader, start=1):
-                # con probabilidad 1/i reemplazo la fila elegida
+                # with probability 1/i replace the chosen row
                 if random.random() < 1 / i:
                     chosen_row = row
 
         if chosen_row is None:
             raise ValueError(f"El archivo {chosen_file} no tiene filas de datos")
 
-        # 3) Asignar a atributos
+        # 3) Assign to attributes
         self.mf = float(chosen_row["fuel"])
         self.brk = float(chosen_row["Brake"])
         self.ice_sp = float(chosen_row["ICE_Speed_soll"])
