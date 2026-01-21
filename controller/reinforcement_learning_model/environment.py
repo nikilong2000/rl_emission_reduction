@@ -1,4 +1,3 @@
-
 import csv
 import torch
 import numpy as np
@@ -14,7 +13,16 @@ class Environment:
     Manages the Reinforcement Learning environment for a vehicle control task.
     """
 
-    def __init__(self, transition_function_model, length_problem: int = 1200,alpha: float = 1.0, beta: float = 0.0, gamma: float = 0.0, stable_velocity: float = 0.3, n_stable: int = 50):
+    def __init__(
+        self,
+        transition_function_model,
+        length_problem: int = 1200,
+        alpha: float = 1.0,
+        beta: float = 0.0,
+        gamma: float = 0.0,
+        stable_velocity: float = 0.3,
+        n_stable: int = 50,
+    ):
         """
         Initializes the environment.
 
@@ -31,25 +39,24 @@ class Environment:
                             episode to terminate.
         """
 
-        # Modelo de transición (externo)
+        # Transition model (external)
         self.transition_function_model = transition_function_model
 
-        # Configuración del episodio
+        # Episode configuration
         self.length_problem = length_problem
-        self.stable_velocity = -stable_velocity**2
+        self.stable_velocity = -(stable_velocity**2)
         self.n_stable = n_stable
 
-        # Coeficientes para la recompensa
+        # Reward coefficients
         self.alpha, self.beta, self.gamma = alpha, beta, gamma
 
-        # Condiciones ambiente
+        # Ambient conditions
         self.p_amb_bar = 1.0
         self.T_amb_K = 298.0
 
-        # Variables de estado (se rellenan en reset)
+        # State variables (filled in reset)
         self.step_count = 0
         self.stable_counter = 0
-
 
     def step(self, action, vel_target: float = 70.0):
         """
@@ -65,92 +72,84 @@ class Environment:
         Returns:
             tuple: A tuple containing (new_state, reward, terminated, truncated).
         """
-#         print(self.step_count)
+        #         print(self.step_count)
 
         # ------------------------------------------------------------------
-        # 1) APLICAR LA ACCIÓN
+        # 1) APPLY ACTION
         # ------------------------------------------------------------------
         delta_mf, delta_brk, delta_ice_sp = action
-        self.mf     = float(delta_mf)
-        self.brk    = float(delta_brk)
+        self.mf = float(delta_mf)
+        self.brk = float(delta_brk)
         self.ice_sp = float(delta_ice_sp)
 
- 
-#         print(f"Mf: {self.mf}, "f"Brk: {self.brk}, "f"ICE_sp: {self.ice_sp}")
-
+        #         print(f"Mf: {self.mf}, "f"Brk: {self.brk}, "f"ICE_sp: {self.ice_sp}")
 
         # ------------------------------------------------------------------
-        # 2) PREDICCIÓN DEL ICE
+        # 2) ICE PREDICTION
         # ------------------------------------------------------------------
         torque_ICE_tf, nox_tf, _, co_tf, _ = self.transition_function_model.predict_ice(
             self.ice_sp, self.mf, self.T_amb_K, self.p_amb_bar
         )
 
-        # → pasamos los tensores de TF a float
+        # → pass TF tensors to float
         self.torque_ICE = float(torque_ICE_tf.numpy())
-        self.nox    = float(nox_tf.numpy())
-        self.co     = float(co_tf.numpy())
-        
-
+        self.nox = float(nox_tf.numpy())
+        self.co = float(co_tf.numpy())
 
         # ------------------------------------------------------------------
-        # 3) ICE CLIPPING 
+        # 3) ICE CLIPPING
         # -----------------------------------------------------------------
-       
+
         self.torque_ICE = np.clip(self.torque_ICE, -50, 300.0)
 
-    
-        # Apagar el ICE si la velocidad de giro es baja
+        # Turn off ICE if rotational speed is low
         if self.ice_sp < 900.0:
             self.torque_ICE = 0.0
-            self.mf     = 3.0
-
-
+            self.mf = 3.0
 
         # ------------------------------------------------------------------
-        # 4) PREDICCIÓN DEL POWER‑SPLIT (PG / EM2)
-        # ------------------------------------------------------------------        
+        # 4) POWER-SPLIT PREDICTION (PG / EM2)
+        # ------------------------------------------------------------------
         vel_out_tf, _ = self.transition_function_model.predict_PG(
             self.ice_sp, 0.0, self.torque_ICE, self.brk
         )
         self.vel_out = float(vel_out_tf.numpy())
-        self.vel     = self.vel_out          # guardamos velocidad actual
-        
-#         print(f"vel_out: {self.vel_out}")
+        self.vel = self.vel_out  # save current speed
+
+        #         print(f"vel_out: {self.vel_out}")
 
         # ------------------------------------------------------------------
-        # 5) NUEVO ESTADO Y RECOMPENSA
+        # 5) NEW STATE AND REWARD
         # ------------------------------------------------------------------
         new_state = (vel_target, self.vel, self.mf, self.brk, self.ice_sp)
-        reward    = self.get_reward(vel_target)
+        reward = self.get_reward(vel_target)
 
         # ------------------------------------------------------------------
-        # 6) CONDICIONES DE TERMINACIÓN
+        # 6) TERMINATION CONDITIONS
         # ------------------------------------------------------------------
         if reward >= self.stable_velocity:
             self.stable_counter += 1
         else:
             self.stable_counter = 0
-            
+
         terminated = self.stable_counter >= self.n_stable
-        
-#         if terminated:
-#             print(f"self.stable_velocity: {self.stable_velocity}, reward: {reward}")
-#             print(f"vel_out:{self.vel_out}    |    reward:{reward}")
-#             print("terminated")
+
+        #         if terminated:
+        #             print(f"self.stable_velocity: {self.stable_velocity}, reward: {reward}")
+        #             print(f"vel_out:{self.vel_out}    |    reward:{reward}")
+        #             print("terminated")
 
         self.step_count += 1
-        
-        truncated  = self.step_count >= self.length_problem
-    
-#         if truncated:
-#             print(f"vel_out:{self.vel_out}    |    reward:{reward}")
-#             print("truncated")
+
+        truncated = self.step_count >= self.length_problem
+
+        #         if truncated:
+        #             print(f"vel_out:{self.vel_out}    |    reward:{reward}")
+        #             print("truncated")
 
         # ------------------------------------------------------------------
         return new_state, reward, terminated, truncated
 
-    
     def get_reward(self, vel_target: float) -> float:
         """
         Calculates the reward for the current state.
@@ -158,10 +157,10 @@ class Environment:
         The reward is a penalty based on the squared error between the target
         and current velocities. A larger error results in a more negative reward.
         """
-        error = vel_target - self.vel_out            # escalar float
-        reward = -self.alpha * (error ** 2)           # cuadrado del error
+        error = vel_target - self.vel_out  # float scalar
+        reward = -self.alpha * (error**2)  # squared error
         return reward
-    
+
     # En Environment.py
 
     def get_reward(self, vel_target: float) -> float:
@@ -170,12 +169,14 @@ class Environment:
         """
         error = vel_target - self.vel_out
 
-        max_possible_error = 100.0 
+        max_possible_error = 100.0
         normalized_error = error / max_possible_error
-        reward = -self.alpha * (normalized_error ** 2) # Ahora la recompensa estará entre [-alpha, 0]
+        reward = -self.alpha * (
+            normalized_error**2
+        )  # Now the reward will be between [-alpha, 0]
 
-        # Opción B: Simplemente usar un factor de escala más agresivo
-        # reward = -0.001 * (error ** 2) 
+        # Option B: Simply use a more aggressive scaling factor
+        # reward = -0.001 * (error ** 2)
 
         return reward
 
@@ -186,21 +187,20 @@ class Environment:
         Returns:
             tuple: The initial state of the environment.
         """
-        # Reinicia el modelo de función de transición
+        # Resets the transition function model
         self.transition_function_model.reset_models()
 
-        # Genera un estado inicial aleatorio
+        # Generates a random initial state
         self.reset_variables()
 
-        # Reinicia el modelo de función de transición
+        # Resets the transition function model
         self.transition_function_model.reset_models()
-        
-        # Contadores
+
+        # Counters
         self.step_count = 0
         self.stable_counter = 0
 
         return vel_target, self.vel, self.mf, self.brk, self.ice_sp
-
 
     def reset_variables(self):
         """
@@ -210,7 +210,9 @@ class Environment:
         self.sample_init_state()
 
         # Calciula la velocidad inicial
-        self.vel, _ = self.transition_function_model.predict_PG(self.ice_sp, self.EM2, self.torque, self.brk)
+        self.vel, _ = self.transition_function_model.predict_PG(
+            self.ice_sp, self.EM2, self.torque, self.brk
+        )
 
     def sample_init_state(self, folder_path="../src/data"):
         """
@@ -222,8 +224,7 @@ class Environment:
         # 1) Listar CSVs
         csv_files = [f for f in os.listdir(folder_path) if f.endswith(".csv")]
         if not csv_files:
-            raise FileNotFoundError(
-                f"No se encontraron archivos CSV en {folder_path}")
+            raise FileNotFoundError(f"No se encontraron archivos CSV en {folder_path}")
 
         chosen_file = os.path.join(folder_path, random.choice(csv_files))
 
@@ -244,7 +245,7 @@ class Environment:
         self.brk = float(chosen_row["Brake"])
         self.ice_sp = float(chosen_row["ICE_Speed_soll"])
         self.EM2 = float(chosen_row["EM2_Torque"])
-        self.torque = float(chosen_row["ICE_Torque_pred"])        
+        self.torque = float(chosen_row["ICE_Torque_pred"])
+
+
 #         print(f"reset --> mf: {self.mf}, brk: {self.brk}, ice_sp: {self.ice_sp}, EM2: {self.EM2}, torque: {self.torque}")
-        
-        
