@@ -1,7 +1,0 @@
-joblib
-numpy
-pandas
-plotly
-ray
-tensorflow
-torch
