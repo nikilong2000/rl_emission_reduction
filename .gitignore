@@ -215,10 +215,10 @@ ENV/
 # End of https://www.gitignore.io/api/macos,linux,django,python,pycharm
 
 # RL Emission Project specifics
-*.h5
-*.hdf5
+# *.h5
+# *.hdf5
 *.npz
-*.lib
+# *.lib
 *.onnx
 *.ini
 # *.whl
