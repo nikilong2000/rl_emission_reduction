@@ -1,0 +1,30 @@
+# Core Data Science & Math
+numpy
+pandas
+matplotlib
+plotly
+scikit-learn
+joblib
+tqdm
+
+# Deep Learning Frameworks
+# Note: This project appears to use both PyTorch and TensorFlow components
+torch
+tensorflow
+tensorflow-addons
+keras
+h5py
+
+# Reinforcement Learning & Ray
+ray
+gym
+
+# ONNX & Serving
+onnxruntime
+protobuf
+absl-py
+
+# Custom / Local Dependencies
+# Note: This project requires a local wheel file located in:
+# macial/SHARE/onnx_predict-0.1.1-py3-none-any.whl
+# You can install it via: pip install macial/SHARE/onnx_predict-0.1.1-py3-none-any.whl

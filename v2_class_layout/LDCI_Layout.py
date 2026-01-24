@@ -120,6 +120,8 @@ class LDCI_Layout:
 
         self.plot_dataset(column_names, C)
 
+        fig = plt.gcf()
+        fig.savefig("test.png")
         plt.show()
 
         # to be improved: position of figures to see all them at once
