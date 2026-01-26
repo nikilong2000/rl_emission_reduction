@@ -219,6 +219,6 @@ ENV/
 # *.hdf5
 *.npz
 # *.lib
-*.onnx
+# *.onnx
 *.ini
 # *.whl
