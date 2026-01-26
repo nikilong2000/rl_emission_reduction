@@ -6,12 +6,18 @@ from the existing codebase, handling LSTM hidden states cleanly.
 """
 import sys
 import os
+from typing import Tuple, Dict
 
-# Add the old RL model path to system path
-sys.path.insert(0, '/home/runner/work/rl_emission_reduction/rl_emission_reduction/controller_for_ICE_PG/reinforcement_learning_model')
+# Add the RL model path to system path
+# Note: This should be made configurable in production
+RL_MODEL_PATH = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    'controller_for_ICE_PG',
+    'reinforcement_learning_model'
+)
+sys.path.insert(0, RL_MODEL_PATH)
 
 from transition_function_model import setup_transition_function_model
-from typing import Tuple, Dict
 
 
 class SimulationModel:

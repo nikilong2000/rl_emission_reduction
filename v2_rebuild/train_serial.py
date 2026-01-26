@@ -13,6 +13,35 @@ from typing import Optional
 # Note: Requires Keras compatibility fix for environment/simulation to work
 # This is a template showing the correct structure
 
+
+# Action scaling constants (from normalized [-1, 1] to environment ranges)
+ACTION_FUEL_MIN = 3.0      # Minimum fuel mass (mg)
+ACTION_FUEL_RANGE = 20.0   # Fuel mass range (mg)
+ACTION_BRAKE_RANGE = 100.0 # Brake percentage range
+ACTION_ICE_SPEED_MIN = 800.0   # Minimum ICE speed (RPM)
+ACTION_ICE_SPEED_RANGE = 2200.0  # ICE speed range (RPM)
+
+
+def scale_action_to_env(normalized_action: np.ndarray) -> np.ndarray:
+    """
+    Scale normalized action from [-1, 1] to environment ranges.
+    
+    Args:
+        normalized_action: Action in range [-1, 1] with shape (3,)
+                          [fuel, brake, ice_speed]
+    
+    Returns:
+        Scaled action in environment ranges:
+        - fuel: [3, 23] mg
+        - brake: [0, 100] %
+        - ice_speed: [800, 3000] RPM
+    """
+    return np.array([
+        (normalized_action[0] + 1) * ACTION_FUEL_RANGE / 2 + ACTION_FUEL_MIN,  # mf: [3, 23]
+        (normalized_action[1] + 1) * ACTION_BRAKE_RANGE / 2,                    # brk: [0, 100]
+        (normalized_action[2] + 1) * ACTION_ICE_SPEED_RANGE / 2 + ACTION_ICE_SPEED_MIN  # ice_sp: [800, 3000]
+    ])
+
 def train_serial(
     ice_model_dir: str,
     pg_model_dir: str,
@@ -130,13 +159,8 @@ def train_serial(
                 # Policy with exploration noise
                 action = agent.select_action(obs, add_noise=True)
             
-            # Scale action to environment ranges (simple linear scaling for now)
-            # This is a placeholder - adjust based on actual action ranges
-            scaled_action = np.array([
-                (action[0] + 1) * 10 + 3,      # mf: [3, 23]
-                (action[1] + 1) * 50,           # brk: [0, 100]
-                (action[2] + 1) * 1100 + 800    # ice_sp: [800, 3000]
-            ])
+            # Scale action to environment ranges
+            scaled_action = scale_action_to_env(action)
             
             # Execute action
             next_obs, reward, terminated, truncated, info = env.step(scaled_action)

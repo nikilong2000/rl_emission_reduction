@@ -7,14 +7,27 @@ The key fix is to include the Error in the observation space (6 dimensions total
 import numpy as np
 import sys
 import os
-
-# Add the old RL model path to system path for importing transition model
-sys.path.insert(0, '/home/runner/work/rl_emission_reduction/rl_emission_reduction/controller_for_ICE_PG/reinforcement_learning_model')
-
-from transition_function_model import setup_transition_function_model
 from typing import Tuple, Dict, Optional
 import random
 import csv
+
+# Add the RL model path to system path
+# Note: This should be made configurable in production
+RL_MODEL_PATH = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    'controller_for_ICE_PG',
+    'reinforcement_learning_model'
+)
+sys.path.insert(0, RL_MODEL_PATH)
+
+from transition_function_model import setup_transition_function_model
+
+
+# Environment constants
+TORQUE_MIN = -50.0  # Minimum ICE torque (Nm)
+TORQUE_MAX = 300.0  # Maximum ICE torque (Nm)
+MIN_ICE_SPEED = 900.0  # Minimum ICE speed before shutdown (RPM)
+DEFAULT_FUEL_AT_IDLE = 3.0  # Fuel mass when ICE is off (mg)
 
 
 class VehicleControlEnvironment:
@@ -245,12 +258,12 @@ class VehicleControlEnvironment:
         co = float(co_tf.numpy())
         
         # Clip ICE torque
-        torque_ICE = np.clip(torque_ICE, -50.0, 300.0)
+        torque_ICE = np.clip(torque_ICE, TORQUE_MIN, TORQUE_MAX)
         
         # Turn off ICE if speed is too low
-        if self.ice_sp < 900.0:
+        if self.ice_sp < MIN_ICE_SPEED:
             torque_ICE = 0.0
-            self.mf = 3.0
+            self.mf = DEFAULT_FUEL_AT_IDLE
         
         # Predict PG output
         vel_tf, soc_tf = self.transition_model.predict_PG(

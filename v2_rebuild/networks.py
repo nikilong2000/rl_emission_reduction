@@ -12,6 +12,11 @@ import torch.nn as nn
 from typing import Tuple, Optional
 
 
+# Constants for observation space structure
+OBS_DIM_WITHOUT_ERROR = 5  # First 5 dimensions: vel_target, vel, mf, brk, ice_sp
+ERROR_DIM_INDEX = 5  # Error is at index 5 (6th dimension)
+
+
 class Actor(nn.Module):
     """
     Actor network with LSTM for sequential decision making.
@@ -92,8 +97,8 @@ class Actor(nn.Module):
             return x
         
         # Normalize first 5 dimensions, keep error (6th) as is
-        x_first5 = x[..., :5] * self._scale + self._min
-        x_error = x[..., 5:6]  # Error already normalized
+        x_first5 = x[..., :OBS_DIM_WITHOUT_ERROR] * self._scale + self._min
+        x_error = x[..., ERROR_DIM_INDEX:ERROR_DIM_INDEX+1]  # Error already normalized
         return torch.cat([x_first5, x_error], dim=-1)
     
     def reset_hidden_state(self):
@@ -225,8 +230,8 @@ class RecurrentCritic(nn.Module):
             return obs
         
         # Normalize first 5 dimensions, keep error (6th) as is
-        obs_first5 = obs[..., :5] * self._scale + self._min
-        obs_error = obs[..., 5:6]  # Error already normalized
+        obs_first5 = obs[..., :OBS_DIM_WITHOUT_ERROR] * self._scale + self._min
+        obs_error = obs[..., ERROR_DIM_INDEX:ERROR_DIM_INDEX+1]  # Error already normalized
         return torch.cat([obs_first5, obs_error], dim=-1)
     
     def reset_hidden_state(self):
