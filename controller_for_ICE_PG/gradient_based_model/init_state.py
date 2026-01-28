@@ -81,7 +81,7 @@ def sample_init_state_folder(folder_path="../src/data"):
     )
     row = df_iter.iloc[0]
 
-    # Extraer columnas y convertir a tensores
+    # Extract columns and convert to tensors
     mf = tf.constant(row["fuel"], dtype=tf.float32)
     brk = tf.constant(row["Brake"], dtype=tf.float32)
     ice_sp = tf.constant(row["ICE_Speed_soll"], dtype=tf.float32)

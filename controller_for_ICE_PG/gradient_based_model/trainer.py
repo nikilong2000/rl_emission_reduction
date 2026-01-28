@@ -39,13 +39,13 @@ def train_and_save_controller(
     num_ini=3,
 ):
     """
-    Trains a controller model using gradient-based optimization over entire trajectories.
+    Trains a controller model using gradient-based optimisation over entire trajectories.
 
     This function orchestrates the entire training process, which includes:
-    1.  **Robust Initialization**: Performs a short pre-training run with multiple random seeds and selects the one that yields the lowest initial loss to start the main training.
+    1.  **Robust Initialisation**: Performs a short pre-training run with multiple random seeds and selects the one that yields the lowest initial loss to start the main training.
     2.  **Main Training Loop**: In each epoch, it simulates a full trajectory (rollout) from a random initial state, calculates the total loss, and applies gradients to update the controller's weights.
     3.  **Manual Callbacks**: Implements `ReduceLROnPlateau` to decrease the learning rate if the loss stagnates and `EarlyStopping` to halt training if there's no improvement.
-    4.  **Dynamic Difficulty Adjustment**: Progressively reduces the `warmup_steps` as the controller improves, forcing it to optimize the trajectory over a longer time horizon.
+    4.  **Dynamic Difficulty Adjustment**: Progressively reduces the `warmup_steps` as the controller improves, forcing it to optimise the trajectory over a longer time horizon.
     5.  **Artifact Saving**: Upon completion, it saves the best model, a plot of the loss evolution, and an interactive simulation of the final trajectory.
 
     Parameters
@@ -61,7 +61,7 @@ def train_and_save_controller(
     controller : tf.keras.Model
         The neural network that acts as the controller to be trained.
     learning_rate : float, optional
-        The initial learning rate for the Adam optimizer, by default 1e-4.
+        The initial learning rate for the Adam optimiser, by default 1e-4.
     output_root : str, optional
         The root directory where the results folder for this run will be created, by default "models".
     clipping : bool, optional
@@ -112,7 +112,7 @@ def train_and_save_controller(
     # last_steps always synchronized with warmup_steps
     last_steps = 1200 - warmup_steps
 
-    # === Short multi-start: initialization pre-selection ===
+    # === Short multi-start: initialisation pre-selection ===
     seeds = list(range(num_ini))  # 3 starts
     short_epochs = 3  # 5 express epochs
     best_init_loss = float("inf")

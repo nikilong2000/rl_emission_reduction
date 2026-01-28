@@ -135,7 +135,7 @@ import os
 
 
 ###############################################################################
-# eval_loss_components  —  optimized version (≈10-15× faster on GPU)
+# eval_loss_components  —  optimised version (≈10-15× faster on GPU)
 ###############################################################################
 @tf.function()  # ← XLA optional but speeds up significantly
 def eval_loss_components_fast(
@@ -237,19 +237,19 @@ def eval_loss_components_fast(
                 1.0, tf.cast(i, tf.float32) / tf.cast(warmup_steps, tf.float32)
             )  # warm-up 0→1
 
-            # ---------- acumular SOLO en las últimas `last_steps` ----------
+            # ---------- accumulate ONLY in the last `last_steps` ----------
             t_vel += w * tf.abs(vel_target - vel_out)
             t_nox += w * nox
             t_co += w * co
 
-            vel = vel_out  # próximo paso
+            vel = vel_out  # next step
 
-        # Medias de la trayectoria
+        # Trajectory means
         inv_last = 1.0 / tf.cast(last_steps, tf.float32)
         g_vel += t_vel * inv_last
         g_nox += t_nox * inv_last
         g_co += t_co * inv_last
 
-    # Medias globales sobre N trayectorias
+    # Global means over N trajectories
     inv_N = 1.0 / tf.cast(N, tf.float32)
     return g_vel * inv_N, g_nox * inv_N, g_co * inv_N

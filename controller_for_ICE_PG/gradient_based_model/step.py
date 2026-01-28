@@ -42,7 +42,7 @@ def rollout_and_loss(
         Constant tensors representing the weights for the loss components
         (velocity error, NOx, CO).
     opt : tf.keras.optimizers.Optimizer
-        The optimizer instance used to apply gradients at each step.
+        The optimiser instance used to apply gradients at each step.
     clipping : bool
         If True, clips the predicted torque value within a safe range.
     total_steps : int, optional
@@ -115,27 +115,27 @@ def rollout_and_loss(
 
             #             tf.print("mf =", mf, "brk =", brk, "ice_sp =", ice_sp, "torque", torque)
 
-            # Pérdida de este paso
+            # Loss of this step
             step_loss = (
                 alpha * tf.square(vel_target - vel_out) + beta * nox + gamma * co
             )
 
-            # ---------- ENMASCARAMIENTO ----------
+            # ---------- MASKING ----------
             w = tf.minimum(
                 1.0, tf.cast(i, tf.float32) / tf.cast(warmup_steps, tf.float32)
-            )  # ➋ rampa 0→1
+            )  # ➋ ramp 0->1
             step_loss *= w
 
-        # Aplicar gradientes de inmediato
+        # Apply gradients immediately
         grads = tape.gradient(step_loss, controller.trainable_weights)
         opt.apply_gradients(zip(grads, controller.trainable_weights))
 
-        # Si estamos en las últimas 200 iteraciones, acumular esa pérdida
-        # Convertimos la condición a float (1.0 si i >= threshold, 0.0 en otro caso)
+        # If we are in the last 200 iterations, accumulate that loss
+        # Convert condition to float (1.0 if i >= threshold, 0.0 otherwise)
         loss_total_last += step_loss
 
         # Update speed for the next step
         vel = vel_out
 
-    # Devolver pérdida media de las últimas N iteraciones
+    # Return mean loss of the last N iterations
     return loss_total_last / tf.cast(total_steps, tf.float32)

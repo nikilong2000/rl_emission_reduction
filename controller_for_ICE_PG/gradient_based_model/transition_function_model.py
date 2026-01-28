@@ -1,22 +1,9 @@
+import os
+import joblib
 import numpy as np
 import pandas as pd  # ← keeping it because the rest of the file uses it
 import tensorflow as tf  # NEW
 from tensorflow.keras.models import clone_model, load_model
-import joblib
-import os
-
-import numpy as np
-import pandas as pd
-from tensorflow.keras.models import clone_model, load_model
-import joblib
-import os
-
-import numpy as np
-import pandas as pd  # ← keeping it because the rest of the file uses it
-import tensorflow as tf  # NEW
-from tensorflow.keras.models import clone_model, load_model
-import joblib
-import os
 
 
 def get_model(ruta_modelo):
@@ -41,7 +28,7 @@ def get_model(ruta_modelo):
         If the model file cannot be found or loaded from the specified path.
     """
     ruta_completa = os.path.join(ruta_modelo, "model.h5")
-    # normalize path separators
+    # normalise path separators
     ruta_completa = os.path.normpath(ruta_completa)
 
     print(f"🔍 Attempting to load model from: {ruta_completa}")  # ← key
@@ -72,7 +59,7 @@ def setup_transition_function_model(ruta_ICE, ruta_PG, SOC_ini=0.7):
     Returns
     -------
     transition_function_model
-        An initialized instance of the transition function model simulator.
+        An initialised instance of the transition function model simulator.
     """
 
     ICE_model = get_model(ruta_ICE)
@@ -147,7 +134,7 @@ class transition_function_model:
         SOC_ini=0.7,
         show_progress=False,
     ):
-        """Initializes the vehicle's propulsion system simulator.
+        """Initialises the vehicle's propulsion system simulator.
 
         This object encapsulates the prediction models for the internal combustion
         engine (ICE) and the powertrain (PG), along with their respective

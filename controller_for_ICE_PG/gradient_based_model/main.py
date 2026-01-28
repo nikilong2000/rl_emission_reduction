@@ -61,4 +61,4 @@ out_dir, losses = train_and_save_controller(
 )
 
 
-print("Todo listo en:", out_dir)
+print("All ready in:", out_dir)
