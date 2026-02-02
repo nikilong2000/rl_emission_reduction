@@ -60,8 +60,8 @@ def validate_environment():
 
         # Validate shapes
         assert next_obs.shape == (
-            6,
-        ), f"Step {i}: Expected obs shape (6,), got {next_obs.shape}"
+            7,
+        ), f"Step {i}: Expected obs shape (7,), got {next_obs.shape}"
         assert isinstance(reward, (int, float)), f"Step {i}: Reward should be numeric"
         assert isinstance(terminated, bool), f"Step {i}: terminated should be bool"
         assert isinstance(truncated, bool), f"Step {i}: truncated should be bool"
