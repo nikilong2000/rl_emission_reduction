@@ -25,8 +25,8 @@ class SequenceReplayBuffer:
         capacity: int = 100000,
         burn_in_length: int = 20,
         unroll_length: int = 40,
-        obs_dim: int = 6,
-        action_dim: int = 3,
+        obs_dim: int = 7,  # Default to 7
+        action_dim: int = 4,  # Default to 4
     ):
         """
         Initialize the buffer.

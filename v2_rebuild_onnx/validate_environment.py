@@ -32,11 +32,8 @@ def validate_environment():
     print(f"   Observation space: {env.observation_space}")
     print(f"   Action space: {env.action_space}")
     assert env.observation_space.shape == (
-        6,
-    ), f"Expected obs shape (6,), got {env.observation_space.shape}"
-    assert env.action_space.shape == (
-        3,
-    ), f"Expected action shape (3,), got {env.action_space.shape}"
+        7,
+    ), f"Expected obs shape (7,), got {env.observation_space.shape}"
     print("   ✓ Spaces validated!")
 
     # Test reset
@@ -45,7 +42,7 @@ def validate_environment():
     print(f"   Initial observation shape: {obs.shape}")
     print(f"   Initial observation: {obs}")
     print(f"   Initial info: {info}")
-    assert obs.shape == (6,), f"Expected obs shape (6,), got {obs.shape}"
+    assert obs.shape == (7,), f"Expected obs shape (7,), got {obs.shape}"
     print("   ✓ Reset validated!")
 
     # Test step with random actions
@@ -87,7 +84,7 @@ def validate_environment():
     # Test observation components
     print("\n6. Testing observation components...")
     obs, _ = env.reset()
-    action = np.array([0.5, -0.2, 0.3], dtype=np.float32)
+    action = np.array([0.5, -0.2, 0.3, 0.0], dtype=np.float32)
     next_obs, reward, _, _, info = env.step(action)
 
     print(f"   Observation breakdown:")

@@ -38,7 +38,7 @@ def validate_simulation():
     mf_action = 0.3  # controls fuel now
     brk_action = 0.0  # No braking
     ice_sp_action = 0.5  # 50% ICE speed
-    em2_torque_action = 0.2 # Small electric assist
+    em2_torque_action = 0.0 # No electric assist
 
     # Storage for results
     results = {

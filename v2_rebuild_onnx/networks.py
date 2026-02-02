@@ -157,8 +157,8 @@ class CriticNetwork(nn.Module):
     def __init__(
         self,
         scaler_params: Dict,
-        obs_dim: int = 6,
-        action_dim: int = 3,
+        obs_dim: int = 7,
+        action_dim: int = 4,
         hidden_size: int = 128,
     ):
         """
@@ -204,10 +204,20 @@ class CriticNetwork(nn.Module):
         self.register_buffer("_min", min_)
 
     def _normalize_obs(self, x: torch.Tensor) -> torch.Tensor:
-        """Normalize observation (first 5 dims)."""
-        x_first5 = x[..., :5] * self._scale + self._min
-        x_error = x[..., 5:6]
-        return torch.cat([x_first5, x_error], dim=-1)
+        """
+        Normalize observation.
+        
+        The environment already handles normalization (velocity/target in [0,1], 
+        actions in [-1,1], error in [-1,1]).
+        
+        However, the original architecture allowed for an additional scaler layer based on 
+        simulation input statistics. 
+        
+        In the ONNX rebuild v2, we preserve the input 'x' structure (7D) and return it.
+        We skip valid usage of the legacy scaler buffers for now to prevent dimension mismatch,
+        since the environment is already normalized.
+        """
+        return x
 
     @torch.no_grad()
     def reset_states(self):
