@@ -185,7 +185,7 @@ class SimpleReplayBuffer:
     Stores individual transitions without episode structure.
     """
 
-    def __init__(self, capacity: int = 100000, obs_dim: int = 6, action_dim: int = 3):
+    def __init__(self, capacity: int = 100000, obs_dim: int = 7, action_dim: int = 4):
         """
         Initialize the buffer.
 

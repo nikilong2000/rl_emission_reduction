@@ -95,8 +95,8 @@ def train_serial(
     print("\n3. Initializing TD3 agent...")
     agent = TD3Agent(
         scaler_params=scaler_params,
-        obs_dim=6,
-        action_dim=3,
+        obs_dim=7,
+        action_dim=4,
         hidden_size=128,
         device=device,
     )
@@ -107,8 +107,8 @@ def train_serial(
         capacity=buffer_capacity,
         burn_in_length=burn_in_length,
         unroll_length=unroll_length,
-        obs_dim=6,
-        action_dim=3,
+        obs_dim=7,
+        action_dim=4,
     )
 
     # Training metrics

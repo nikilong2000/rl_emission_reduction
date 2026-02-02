@@ -77,7 +77,7 @@ class Simulation:
         """
         # Reset state variables
         self.velocity = 0.0
-        self.soc = self.soc_initial
+        self.soc = self.soc_initial # TODO: check if makes sense to not reset to 0
         self.no, self.no2, self.co, self.co2 = 0.0, 0.0, 0.0, 0.0
         self.torque = 0.0
 
@@ -105,15 +105,37 @@ class Simulation:
             "torque": np.array([self.torque], dtype=np.float32),
         }
 
-    def step(self, mf: float, brk: float, ice_sp: float) -> Dict[str, np.ndarray]:
+    def step(self, mf: float, brk: float, ice_sp: float, em2_torque_cmd: float = 0.0) -> Dict[str, np.ndarray]:
         """
         Execute one simulation step.
         """
         # Denormalize actions to physical units
-        speed_rpm = (ice_sp + 1) * 0.5 * 3200 + 800  # [800, 4000] RPM
-        em2_torque = mf * 100.0  # [-100, 100] Nm
+        # ice_sp: [-1, 1] -> [0, 4500] RPM
+        speed_rpm = (ice_sp + 1) * 0.5 * 4500.0
+
+        # Turn off ICE if rotational speed is low (gradient-based model logic)
+        # In GBM: mask_ice = ice_sp < 900.0
+        # If masked: torque=0, mf=0 (which implies fuel=0 or special handling)
+        
+        # em2_torque: [-1, 1] -> [-421, 421] Nm
+        # Decoupled from mf: em2_torque_cmd controls the electric motor
+        em2_torque = em2_torque_cmd * 421.0
+        
+        # m_fuel_mg: [-1, 1] -> [3, 70] mg 
+        # Decoupled from em2_torque: mf now strictly controls fuel
+        m_fuel_mg = (mf + 1) * 0.5 * (70.0 - 3.0) + 3.0
+
         brake_perc = (brk + 1) * 50.0  # [0, 100]%
-        m_fuel_mg = max(0, mf * 50.0 + 25.0)  # [0, 75] mg fuel
+
+        if speed_rpm < 900.0:
+            m_fuel_mg = 3.0 # or 0? GBM sets mf=0 where mf is likely clipped or raw. 
+            # GBM logic: torque = tf.where(mask_ice, tf.zeros_like(torque), torque)
+            # You requested GBM behavior.
+            # However, GBM uses 'mf' as input to ICE. If speed < 900, it zeroes out torque.
+            # I will apply the torque zeroing AFTER prediction to match GBM exactly, 
+            # rather than modifying inputs here which might disturb the LSTM state continuity.
+            pass
+
 
         # ICE prediction
         # Input: [Speed_rpm, fuel_mg, T_amb, p_amb]
@@ -137,6 +159,12 @@ class Simulation:
         ice_output = self.ice_inv_out_scaler.transform(ice_pred_flat)[0][0]
         
         self.torque, self.no, self.no2, self.co, self.co2 = ice_output
+
+        # GBM Logic: Clipping and Low Speed Masking
+        self.torque = float(np.clip(self.torque, -50.0, 300.0))
+        
+        if speed_rpm < 900.0:
+            self.torque = 0.0
 
         # PG prediction
         # Input: [Speed_rpm, EM2_Torque, ICE_Torque, Brake_perc]

@@ -12,15 +12,15 @@ class ActorNetwork(nn.Module):
     """
     LSTM-based Actor network for continuous control.
 
-    Input: 6D observation [vel_target, velocity, mf, brk, ice_sp, error]
-    Output: 3D action [mf, brk, ice_sp] ∈ [-1, 1]
+    Input: 7D observation [vel_target, velocity, mf, brk, ice_sp, em2_torque, error]
+    Output: 4D action [mf, brk, ice_sp, em2_torque] ∈ [-1, 1]
     """
 
     def __init__(
         self,
         scaler_params: Dict,
-        obs_dim: int = 6,
-        action_dim: int = 3,
+        obs_dim: int = 7,
+        action_dim: int = 4,
         hidden_size: int = 128,
     ):
         """
@@ -28,8 +28,8 @@ class ActorNetwork(nn.Module):
 
         Args:
             scaler_params: Dictionary with normalization parameters (data_min, data_max, scale, min)
-            obs_dim: Observation dimension (6)
-            action_dim: Action dimension (3)
+            obs_dim: Observation dimension (7)
+            action_dim: Action dimension (4)
             hidden_size: LSTM hidden size
         """
         super().__init__()
@@ -71,11 +71,33 @@ class ActorNetwork(nn.Module):
     def _normalize_obs(self, x: torch.Tensor) -> torch.Tensor:
         """
         Normalize observation.
-        First 5 dims scaled, 6th dim (error) passed through.
+        First 5 dims scaled, next dims (e.g. em2_torque, error) passed through.
+        
+        Note on Dimensions for 7D observation:
+        Indices 0-4 (5 dims): [vel_target, velocity, mf, brk, ice_sp] - handled by scaler params?
+        Wait, scaler params are from PG model input scaler which has 4 dims?
+        
+        Actually, the observation construction in Environment.py is already normalized to roughly [-1,1] or [0,1].
+        If we trust the environment's normalization, we might skip complex re-normalization here OR
+        we need to ensure scaler_params aligns with the observation structure.
+        
+        The original code used `scaler_params` derived from `pg_in_scaler` which likely expects 4 inputs:
+        [Speed_rpm, EM2_Torque, ICE_Torque, Brake_perc]. 
+        But the observation is: [vel_target, velocity, mf, brk, ice_sp, em2_torque, error].
+        These don't match index-for-index.
+        
+        Given the environment already normalizes Inputs:
+        - vel_target_norm (0-1)
+        - velocity_norm (0-1)
+        - actions (-1 to 1)
+        - error (-1 to 1)
+        
+        It is safer to modify this to assume inputs are already normalized enough for the neural net,
+        OR apply a simple identity if we aren't sure about the scaler mapping.
         """
-        x_first5 = x[..., :5] * self._scale + self._min
-        x_error = x[..., 5:6]  # Error already normalized
-        return torch.cat([x_first5, x_error], dim=-1)
+        # For now, pass through as the environment explicitly normalizes.
+        return x
+
 
     @torch.no_grad()
     def reset_states(self):

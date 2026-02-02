@@ -98,11 +98,12 @@ def validate_environment():
     print(f"   - mf (action[0]):  {next_obs[2]:.4f}")
     print(f"   - brk (action[1]): {next_obs[3]:.4f}")
     print(f"   - ice_sp (action[2]): {next_obs[4]:.4f}")
-    print(f"   - error_norm:      {next_obs[5]:.4f} (raw: {info['error']:.2f} km/h)")
+    print(f"   - em2_torque (action[3]): {next_obs[5]:.4f}")
+    print(f"   - error_norm:      {next_obs[6]:.4f} (raw: {info['error']:.2f} km/h)")
 
     # Verify error calculation
     expected_error_norm = (env.vel_target - info["velocity"]) / env.max_error
-    assert abs(next_obs[5] - expected_error_norm) < 1e-5, "Error calculation mismatch"
+    assert abs(next_obs[6] - expected_error_norm) < 1e-5, "Error calculation mismatch"
     print("   ✓ Observation components validated!")
 
     # Test reward calculation

@@ -79,8 +79,8 @@ class TD3Agent:
     def __init__(
         self,
         scaler_params: Dict,
-        obs_dim: int = 6,
-        action_dim: int = 3,
+        obs_dim: int = 7,  # Default to 7 for new action
+        action_dim: int = 4,  # Default to 4
         hidden_size: int = 128,
         actor_lr: float = 1e-4,
         critic_lr: float = 1e-3,

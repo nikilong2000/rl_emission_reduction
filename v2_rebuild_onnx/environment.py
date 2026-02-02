@@ -63,19 +63,19 @@ class VehicleEnvironment(gym.Env):
         norm_stable_error = stable_error_threshold / max_error
         self.stable_reward_threshold = 1.0 - (norm_stable_error**2)
 
-        # Define action space: [mf, brk, ice_sp] ∈ [-1, 1]³
-        self.action_space = spaces.Box(low=-1.0, high=1.0, shape=(3,), dtype=np.float32)
+        # Define action space: [mf, brk, ice_sp, em2_torque] ∈ [-1, 1]⁴
+        self.action_space = spaces.Box(low=-1.0, high=1.0, shape=(4,), dtype=np.float32)
 
-        # Define observation space: [vel_target, velocity, mf, brk, ice_sp, error] (6D)
+        # Define observation space: [vel_target, velocity, mf, brk, ice_sp, em2_torque, error] (7D)
         # All components normalized to approximately [-1, 1] or [0, 1]
         self.observation_space = spaces.Box(
-            low=-5.0, high=5.0, shape=(6,), dtype=np.float32  # Conservative bounds
+            low=-5.0, high=5.0, shape=(7,), dtype=np.float32  # Conservative bounds
         )
 
         # Episode state
         self.step_count = 0
         self.stable_counter = 0
-        self.prev_action = np.zeros(3, dtype=np.float32)
+        self.prev_action = np.zeros(4, dtype=np.float32)
 
     def reset(
         self, seed: Optional[int] = None, options: Optional[Dict] = None
@@ -84,7 +84,7 @@ class VehicleEnvironment(gym.Env):
         Reset the environment to initial state.
 
         Returns:
-            observation: Initial observation (6D)
+            observation: Initial observation (7D)
             info: Additional information dictionary
         """
         super().reset(seed=seed)
@@ -95,7 +95,7 @@ class VehicleEnvironment(gym.Env):
         # Reset episode variables
         self.step_count = 0
         self.stable_counter = 0
-        self.prev_action = np.zeros(3, dtype=np.float32)
+        self.prev_action = np.zeros(4, dtype=np.float32)
 
         # Get initial observation
         observation = self._get_observation(sim_state)
@@ -113,10 +113,10 @@ class VehicleEnvironment(gym.Env):
         Execute one environment step.
 
         Args:
-            action: Action array [mf, brk, ice_sp] ∈ [-1, 1]³
+            action: Action array [mf, brk, ice_sp, em2_torque] ∈ [-1, 1]⁴
 
         Returns:
-            observation: New observation (6D)
+            observation: New observation (7D)
             reward: Reward value
             terminated: Whether episode ended naturally (stability reached)
             truncated: Whether episode was cut off (max steps)
@@ -126,12 +126,17 @@ class VehicleEnvironment(gym.Env):
         action = np.clip(action, -1.0, 1.0).astype(np.float32)
 
         # Execute simulation step
+        # Assuming action order: [mf, brk, ice_sp, em2_torque]
         sim_state = self.simulation.step(
-            mf=float(action[0]), brk=float(action[1]), ice_sp=float(action[2])
+            mf=float(action[0]), 
+            brk=float(action[1]), 
+            ice_sp=float(action[2]),
+            em2_torque_cmd=float(action[3])
         )
 
         # Extract state variables
         velocity = float(sim_state["velocity"][0])
+
         soc = float(sim_state["soc"][0])
 
         # Calculate error
@@ -197,7 +202,7 @@ class VehicleEnvironment(gym.Env):
             action: Current action (if None, use previous action)
 
         Returns:
-            observation: 6D observation array
+            observation: 7D observation array
         """
         if action is None:
             action = self.prev_action
@@ -212,7 +217,7 @@ class VehicleEnvironment(gym.Env):
         error_raw = self.vel_target - velocity
         error_norm = error_raw / self.max_error  # [-1, 1]
 
-        # Construct observation [vel_target, velocity, mf, brk, ice_sp, error]
+        # Construct observation [vel_target, velocity, mf, brk, ice_sp, em2_torque, error]
         observation = np.array(
             [
                 vel_target_norm,
@@ -220,6 +225,7 @@ class VehicleEnvironment(gym.Env):
                 action[0],  # mf
                 action[1],  # brk
                 action[2],  # ice_sp
+                action[3],  # em2_torque
                 error_norm,
             ],
             dtype=np.float32,

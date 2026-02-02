@@ -58,7 +58,7 @@ class RolloutWorker:
 
         # Local actor for action selection (no gradients needed)
         self.actor = ActorNetwork(
-            scaler_params=scaler_params, obs_dim=6, action_dim=3, hidden_size=128
+            scaler_params=scaler_params, obs_dim=7, action_dim=4, hidden_size=128
         )
         self.actor.eval()
 
@@ -100,7 +100,7 @@ class RolloutWorker:
 
             # Add exploration noise
             if add_noise:
-                noise = np.random.randn(3).astype(np.float32) * self.noise_scale
+                noise = np.random.randn(4).astype(np.float32) * self.noise_scale
                 action = np.clip(action + noise, -1.0, 1.0)
 
             # Environment step
@@ -168,8 +168,8 @@ class Learner:
         # Initialize agent
         self.agent = TD3Agent(
             scaler_params=scaler_params,
-            obs_dim=6,
-            action_dim=3,
+            obs_dim=7,
+            action_dim=4,
             hidden_size=128,
             device=device,
         )
@@ -179,8 +179,8 @@ class Learner:
             capacity=buffer_capacity,
             burn_in_length=burn_in_length,
             unroll_length=unroll_length,
-            obs_dim=6,
-            action_dim=3,
+            obs_dim=7,
+            action_dim=4,
         )
 
         # Metrics

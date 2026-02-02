@@ -35,9 +35,10 @@ def validate_simulation():
     n_steps = 200
 
     # Constant actions (moderate values)
-    mf_action = 0.3  # 30% motor front torque
+    mf_action = 0.3  # controls fuel now
     brk_action = 0.0  # No braking
     ice_sp_action = 0.5  # 50% ICE speed
+    em2_torque_action = 0.2 # Small electric assist
 
     # Storage for results
     results = {
@@ -51,7 +52,7 @@ def validate_simulation():
     }
 
     for step in range(n_steps):
-        state = sim.step(mf_action, brk_action, ice_sp_action)
+        state = sim.step(mf_action, brk_action, ice_sp_action, em2_torque_action)
 
         # Store results
         for key in results.keys():
@@ -70,7 +71,7 @@ def validate_simulation():
     print("\n4. Plotting results...")
     fig, axes = plt.subplots(3, 2, figsize=(12, 10))
     fig.suptitle(
-        f"Simulation Validation (MF={mf_action}, BRK={brk_action}, ICE_SP={ice_sp_action})",
+        f"Simulation Validation (MF={mf_action}, BRK={brk_action}, ICE_SP={ice_sp_action}, EM2={em2_torque_action})",
         fontsize=14,
         fontweight="bold",
     )
