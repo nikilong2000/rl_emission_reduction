@@ -60,10 +60,10 @@ class Simulation:
         # Initial auxiliary inputs (scaled initial outputs)
         # Using numpy directly
         ice_init_vals = np.array([[0.0, 0.0, 0.0, 0.0, 0.0]], dtype=np.float32)
-        self.initial_ice_aux = self.ice_out_scaler.transform(ice_init_vals).reshape((1, 1, 5))
+        self.initial_ice_aux = np.array(self.ice_out_scaler.transform(ice_init_vals)).reshape((1, 1, 5))
 
         pg_init_vals = np.array([[0.0, soc_initial]], dtype=np.float32)
-        self.initial_pg_aux = self.pg_out_scaler.transform(pg_init_vals).reshape((1, 1, 2))
+        self.initial_pg_aux = np.array(self.pg_out_scaler.transform(pg_init_vals)).reshape((1, 1, 2))
 
         # Reset to initial state
         self.reset()
@@ -125,7 +125,8 @@ class Simulation:
         
         # Model inference
         # The LSTM_onnx __call__ method likely returns the scaled output
-        ice_pred_scaled = self.ice_model([ice_input_scaled, self.ice_aux])
+        # Returns a list of numpy arrays, we want the first one.
+        ice_pred_scaled = self.ice_model([ice_input_scaled, self.ice_aux])[0]
         
         # Update aux for next step (the scaled output becomes the aux input)
         self.ice_aux = ice_pred_scaled
@@ -133,7 +134,7 @@ class Simulation:
         # Descale output
         # Output: [Torque, NO, NO2, CO, CO2]
         ice_pred_flat = ice_pred_scaled.reshape(1, -1)
-        ice_output = self.ice_inv_out_scaler.transform(ice_pred_flat)[0]
+        ice_output = self.ice_inv_out_scaler.transform(ice_pred_flat)[0][0]
         
         self.torque, self.no, self.no2, self.co, self.co2 = ice_output
 
@@ -146,7 +147,7 @@ class Simulation:
         pg_input_scaled = np.reshape(pg_input_scaled, (1, 1, 4))
         
         # Model inference
-        pg_pred_scaled = self.pg_model([pg_input_scaled, self.pg_aux])
+        pg_pred_scaled = self.pg_model([pg_input_scaled, self.pg_aux])[0]
         
         # Update aux for next step
         self.pg_aux = pg_pred_scaled
@@ -154,7 +155,7 @@ class Simulation:
         # Descale output
         # Output: [Velocity, SOC]
         pg_pred_flat = pg_pred_scaled.reshape(1, -1)
-        pg_output = self.pg_inv_out_scaler.transform(pg_pred_flat)[0]
+        pg_output = self.pg_inv_out_scaler.transform(pg_pred_flat)[0][0]
         
         self.velocity, self.soc = pg_output
 
