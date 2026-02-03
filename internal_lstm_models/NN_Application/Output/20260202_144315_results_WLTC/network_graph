@@ -1,0 +1,18 @@
+// Network Graph
+digraph {
+	ICE [label=ICE]
+	Drivetrain [label=Drivetrain]
+	Drivetrain_add [label=Drivetrain_add]
+	ICE_Speed_rpm -> ICE
+	fuel_mg -> ICE
+	T_amb_K -> ICE
+	p_amb_bar -> ICE
+	ICE_Speed_rpm -> Drivetrain
+	ICE -> Drivetrain [label=ICE_Torque_Nm]
+	EM2_Torque_Nm -> Drivetrain
+	Brake_perc -> Drivetrain
+	ICE_Speed_rpm -> Drivetrain_add
+	ICE -> Drivetrain_add [label=ICE_Torque_Nm]
+	EM2_Torque_Nm -> Drivetrain_add
+	Brake_perc -> Drivetrain_add
+}

@@ -1,0 +1,22 @@
+input_data = WLTC.csv
+
+ICE
+directory = ./Nets/ICE
+inputs = ICE_Speed_rpm, fuel_mg, T_amb_K, p_amb_bar
+outputs = ICE_Torque_Nm, fuel_tot_gps, NOx_eo_gps, CO_eo_gps, THC_eo_gps, T_gas_eo_K, NOx_tp_gps, CO_tp_gps, CO2_tp_gps, THC_tp_gps, T_Wall_SCR1_K, T_Wall_DOC_K, T_Sub_DPF_K, T_Wall_SCR2_K, T_Wall_SCR3_K, T_gas_tp_K
+stateful = True
+initial_outputs = 0, 0, 0, 0, 0, 298, 0, 0, 0, 0, 298, 298, 298, 298, 298, 298
+
+Drivetrain
+directory = ./Nets/Drivetrain
+inputs = ICE_Speed_rpm, ICE: ICE_Torque_Nm, EM2_Torque_Nm, Brake_perc
+outputs = Car_Speed_kmph, SOC_1
+stateful = True
+initial_outputs = 0, 0.7
+
+Drivetrain_add
+directory = ./Nets/Drivetrain_add
+inputs = ICE_Speed_rpm, ICE: ICE_Torque_Nm, EM2_Torque_Nm, Brake_perc
+outputs = EM1_Torque_ist_Nm, EM2_Torque_ist_Nm, Sun_Speed_rpm, Ring_Speed_rpm
+stateful = True
+initial_outputs = 0, 0, 0, 0

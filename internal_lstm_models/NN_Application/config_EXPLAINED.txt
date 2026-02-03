@@ -1,0 +1,22 @@
+input_data = WLTC.csv --> Input Data
+
+ICE --> Network Name 
+directory = ./Nets/ICE --> Directory to Network
+inputs = ICE_Speed_rpm, fuel_soll_mg, T_amb_K, p_amb_bar --> Input Parameters
+outputs = ICE_Torque_Nm, tot_burned_fuel_gps, NOx_in_m_gps, CO_in_m_gps, THC_in_m_gps, T_avg_SCR1_K, NOx_out_m_gps, CO_out_m_gps, CO2_out_m_gps, THC_out_m_gps, T_Wall_SCR1_K, T_Wall_DOC_K, T_Sub_DPF_K, T_Wall_SCR2_K, T_Wall_SCR3_K, T_Tailpipe_K --> Output Parameters
+stateful = True --> Always True
+initial_outputs = 0, 0, 0, 0, 0, 298, 0, 0, 0, 0, 298, 298, 298, 298, 298, 298 --> First (expected) Outputs of main model to be used as Inputs for model_init
+
+Drivetrain
+directory = ./Nets/Drivetrain
+inputs = ICE_Speed_rpm, ICE: ICE_Torque_Nm, EM2_Torque_Nm, Brake_perc --> ICE: Use Output from ICE Model
+outputs = Car_Speed_kmph, SOC_1
+stateful = True
+initial_outputs = 0, 0.7
+
+Drivetrain_Plus
+directory = ./Nets/Drivetrain_Plus
+inputs = ICE_Speed_rpm, ICE: ICE_Torque_Nm, EM2_Torque_Nm, Brake_perc
+outputs = EM1_Torque_ist_Nm, EM2_Torque_ist_Nm, Sun_Speed_rpm, Ring_Speed_rpm
+stateful = True
+initial_outputs = 0, 0, 0, 0
