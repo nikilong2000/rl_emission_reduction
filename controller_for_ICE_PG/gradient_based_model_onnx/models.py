@@ -39,8 +39,12 @@ class ScaledController(tf.keras.Model):
         # 4) layers
         ln_cell = tfa.rnn.LayerNormLSTMCell(units)  # <-- ADDED
         self.lstm = tf.keras.layers.RNN(  # <-- REPLACED
-            ln_cell, stateful=True, return_sequences=False
+            ln_cell,
+            stateful=True,
+            return_sequences=False,
         )
+        # Explicitly build the layer to fix the batch size for stateful=True
+        self.lstm.build(input_shape=(1, None, 5))
 
         self.dense = layers.Dense(units // 2, activation="tanh")
         self.delta = layers.Dense(3, activation="linear", name="deltas")
