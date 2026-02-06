@@ -222,3 +222,5 @@ ENV/
 # *.onnx
 *.ini
 # *.whl
+
+*.venv*
