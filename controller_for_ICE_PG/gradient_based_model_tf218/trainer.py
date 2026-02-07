@@ -239,8 +239,8 @@ def train_and_save_controller(
         controller.set_weights(best_weights)
 
     # --- 5) Save final model ---
-    model_path = os.path.join(folder, name)  # without .h5 extension
-    controller.save(model_path, include_optimizer=False, save_format="tf")
+    model_path = os.path.join(folder, name, ".keras")  # with .keras for keras 3
+    controller.save(model_path) # before: with include_optimizer=False
     print(f"✔ Model saved at {model_path}")
 
     # --- 6) Loss plot ---

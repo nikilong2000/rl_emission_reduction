@@ -3,6 +3,7 @@ import joblib
 import numpy as np
 import tensorflow as tf
 import keras  # Ensure you have keras installed
+import warnings
 
 # Enable unsafe deserialization if using Keras 3 (required for some custom layers/configs)
 try:
@@ -111,17 +112,22 @@ class transition_function_model:
     def _descale_minmax(x_scaled, scale, min_):
         return (x_scaled - min_) / scale
 
-    def _init_model_states(self, model_init, model_inf, initial_output_vec, scaler):
+    def _init_model_states(self, model_init, model_inf, initial_output_vec, scaler, reset_state=True):
         """
         Runs model_init to get states and sets them to model_inf.
         """
         # 1. Scale initial outputs
-        init_val_scaled = scaler.transform(initial_output_vec) # (1, Features)
+        # Suppress warnings about feature names mismatch (sklearn vs numpy)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            init_val_scaled = scaler.transform(initial_output_vec) # (1, Features)
+
         init_val_scaled = init_val_scaled.reshape(1, 1, -1)
         
         # 2. Run Init Model to get internal states
         # The model_init returns a list of state tensors
-        states = model_init(init_val_scaled)
+        # Pass input as a list to avoid Keras warning about input structure
+        states = model_init([init_val_scaled])
         
         # 3. Reset and Set states in Inference Model
         # Iterate over layers to find stateful LSTM/RNN layers
@@ -134,7 +140,10 @@ class transition_function_model:
             states = [states]
 
         # Reset first
-        model_inf.reset_states()
+        if reset_state:
+            for layer in model_inf.layers:
+                if hasattr(layer, "reset_states") and layer.stateful:
+                    layer.reset_states()
 
         # Manual State Assignment
         # This part assumes model_init outputs match model_inf stateful layers order
@@ -161,7 +170,8 @@ class transition_function_model:
             self.ICE_model_init, 
             self.ICE_model_inf, 
             self.ICE_initial_vec, 
-            self.ICE_output_scaler
+            self.ICE_output_scaler,
+            reset_state=True
         )
         
         # Initialize PG
@@ -169,7 +179,8 @@ class transition_function_model:
             self.PG_model_init, 
             self.PG_model_inf, 
             self.PG_initial_vec, 
-            self.PG_output_scaler
+            self.PG_output_scaler,
+            reset_state=True
         )
         
         self.results = []
@@ -187,7 +198,8 @@ class transition_function_model:
         x_scaled = tf.reshape(x_scaled, (1, 1, 4)) # (Batch, 1, Feats)
 
         # 3. Inference (Stateful)
-        y_scaled = self.ICE_model_inf(x_scaled, training=False)
+        # Wrap input in list to match Keras model expectation
+        y_scaled = self.ICE_model_inf([x_scaled], training=False)
         y_scaled = tf.reshape(y_scaled, (16,)) # Flat 16 outputs
 
         # 4. De-scale
@@ -220,7 +232,8 @@ class transition_function_model:
         x_scaled = tf.reshape(x_scaled, (1, 1, 4))
 
         # 3. Inference (Stateful)
-        y_scaled = self.PG_model_inf(x_scaled, training=False)
+        # Wrap input in list to match Keras model expectation
+        y_scaled = self.PG_model_inf([x_scaled], training=False)
         y_scaled = tf.reshape(y_scaled, (2,))
 
         # 4. De-scale
