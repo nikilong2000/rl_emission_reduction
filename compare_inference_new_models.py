@@ -190,34 +190,13 @@ def main():
         print(f"Data loading failed: {e}")
         return
 
-    # 2. BENCHMARK OLD MODELS
-    print("\n--- Benchmarking OLD Models ---")
-    try:
-        # Wrap in specific try/except to avoid crashing the whole script
-        ice_old = OldModelWrapper(OLD_ICE_DIR, "ICE")
-        drv_old = OldModelWrapper(OLD_PG_DIR, "Drivetrain")
-
-        # Warmup
-        ice_old.predict_step(data[0:1])
-
-        with Timer() as t_old:
-            for i in range(len(data)):
-                _ = ice_old.predict_step(data[i : i + 1])
-                # Mock drv input
-                _ = drv_old.predict_step(np.zeros((1, 4), dtype=np.float32))
-
-        print(
-            f"Old Models Total Time: {t_old.duration:.4f}s ({t_old.duration/len(data)*1000:.4f} ms/step)"
-        )
-
-    except Exception as e:
-        print(f"SKIPPED OLD MODELS: {e}")
-        print(
-            "Reason: Legacy Keras 2 .h5 models with custom layers (LayerNormLSTMCell) are incompatible with Keras 3."
-        )
-
-    # 3. BENCHMARK NEW MODELS
+    # 2. BENCHMARK NEW MODELS
     print("\n--- Benchmarking NEW Models ---")
+
+    # Store results
+    ice_results = []
+    drv_results = []
+
     try:
         new_ice = NewModelWrapper(NEW_ICE_DIR, "ICE")
         new_drv = NewModelWrapper(NEW_DRV_DIR, "Drivetrain")
@@ -237,15 +216,46 @@ def main():
 
         with Timer() as t_new:
             for i in range(len(data)):
-                _ = new_ice.step(data[i : i + 1])
+                # 1. Prediction ICE
+                ice_out = new_ice.step(data[i : i + 1])
+                ice_results.append(ice_out.flatten())
 
-                # Create dummy input for Drivetrain (4 features)
-                dummy_drv_in = np.array([[data[i][0], 100.0, 50.0, 0.0]])
-                _ = new_drv.step(dummy_drv_in)
+                # 2. Extract Torque (Index 0)
+                # ice_out is (1, 16) numpy array
+                torque = ice_out[0, 0]
+
+                # 3. Prediction Drivetrain
+                drv_input = np.array([[data[i][0], torque, 50.0, 0.0]])
+                drv_out = new_drv.step(drv_input)
+                drv_results.append(drv_out.flatten())
 
         print(
             f"New Models (ICE + Drivetrain) Total Time: {t_new.duration:.4f}s ({t_new.duration/len(data)*1000:.4f} ms/step)"
         )
+
+        # Save Results
+        print("Saving results to 'new_model_predictions.csv'...")
+        ice_np = np.array(ice_results)
+        drv_np = np.array(drv_results)
+
+        # Try to get column names from scalers
+        try:
+            ice_cols = [
+                f"ICE_{name}" for name in new_ice.output_scaler.feature_names_in_
+            ]
+        except AttributeError:
+            ice_cols = [f"ICE_Out_{j}" for j in range(ice_np.shape[1])]
+
+        try:
+            drv_cols = [
+                f"DRV_{name}" for name in new_drv.output_scaler.feature_names_in_
+            ]
+        except AttributeError:
+            drv_cols = [f"DRV_Out_{j}" for j in range(drv_np.shape[1])]
+
+        df_res = pd.DataFrame(np.hstack([ice_np, drv_np]), columns=ice_cols + drv_cols)
+        df_res.to_csv("new_model_predictions.csv", index=False)
+        print("Results saved.")
 
     except Exception as e:
         print(f"FAILED NEW MODELS: {e}")
