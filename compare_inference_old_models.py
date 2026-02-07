@@ -126,6 +126,27 @@ def main():
     # 2. BENCHMARK OLD MODELS
     print("\n--- Benchmarking OLD Models ---")
 
+    # Define Output Columns (from config.txt)
+    ICE_COLS = [
+        "ICE_Torque_Nm",
+        "fuel_tot_gps",
+        "NOx_eo_gps",
+        "CO_eo_gps",
+        "THC_eo_gps",
+        "T_gas_eo_K",
+        "NOx_tp_gps",
+        "CO_tp_gps",
+        "CO2_tp_gps",
+        "THC_tp_gps",
+        "T_Wall_SCR1_K",
+        "T_Wall_DOC_K",
+        "T_Sub_DPF_K",
+        "T_Wall_SCR2_K",
+        "T_Wall_SCR3_K",
+        "T_gas_tp_K",
+    ]
+    DRV_COLS = ["Car_Speed_kmph", "SOC_1"]
+
     # Store results
     ice_results = []
     drv_results = []
@@ -166,9 +187,15 @@ def main():
         drv_np = np.array(drv_results)
 
         # Construct DataFrame
-        # ICE Columns (Generic or Try to use scaler names if available, but for old joblib they might not be)
-        ice_cols = [f"ICE_Out_{j}" for j in range(ice_np.shape[1])]
-        drv_cols = [f"DRV_Out_{j}" for j in range(drv_np.shape[1])]
+        if ice_np.shape[1] == len(ICE_COLS):
+            ice_cols = [f"ICE_{c}" for c in ICE_COLS]
+        else:
+            ice_cols = [f"ICE_Out_{j}" for j in range(ice_np.shape[1])]
+
+        if drv_np.shape[1] == len(DRV_COLS):
+            drv_cols = [f"DRV_{c}" for c in DRV_COLS]
+        else:
+            drv_cols = [f"DRV_Out_{j}" for j in range(drv_np.shape[1])]
 
         df_res = pd.DataFrame(np.hstack([ice_np, drv_np]), columns=ice_cols + drv_cols)
         df_res.to_csv("old_model_predictions.csv", index=False)

@@ -143,21 +143,33 @@ class NewModelWrapper:
         """Run init model to prime states."""
         # Ensure aux corresponds to output scaler dimensions
         if aux_values.shape[1] != self.output_scaler.n_features_in_:
-            # Pad or slice if necessary? The script assumes we pass correct size.
-            # For robustness, we recreate aux based of scaler expectations.
+            # Resize logic if needed, but we should pass correct size
             temp_aux = np.zeros((1, self.output_scaler.n_features_in_))
-            # Fill first N cols
             cols = min(aux_values.shape[1], temp_aux.shape[1])
             temp_aux[:, :cols] = aux_values[:, :cols]
             aux_values = temp_aux
 
         aux_scaled = self.output_scaler.transform(aux_values).reshape((1, 1, -1))
-        _ = self.predict_init_func(aux_scaled)
-        # Note: Actual state setting is implicit in stateful=True Functional models
-        # IF we pass the state. But here separate init model is used.
-        # Just running it ensures TF graph tracing, but doesn't set main model weights
-        # unless 'set_states' logic is applied.
-        # For INFERENCE BENCHMARKING: The overhead of running predict_init is captured.
+
+        # 1. Get Initial States from Init Model
+        state_tensors = self.predict_init_func(aux_scaled)
+
+        # 2. Map outputs to layer states
+        # Assumes naming convention: Main Layer 'm_XXX' -> Init Outputs 'out_h_XXX', 'out_c_XXX'
+        states = dict(zip(self.model_init.output_names, state_tensors))
+
+        for layer in self.model_main.layers:
+            if hasattr(layer, "reset_states") and getattr(layer, "stateful", False):
+                name = layer.name
+                h_key = name.replace("m_", "out_h_")
+                c_key = name.replace("m_", "out_c_")
+
+                if h_key in states and c_key in states:
+                    # Assign states (h, c)
+                    layer.states[0].assign(states[h_key])
+                    layer.states[1].assign(states[c_key])
+                else:
+                    print(f"Warning: No matching init states found for layer {name}")
 
     def step(self, input_val):
         x_scaled = self.input_scaler.transform(input_val).reshape((1, 1, -1))
@@ -177,6 +189,27 @@ def main():
     NEW_ICE_DIR = "internal_lstm_models/NN_Application/Nets/ICE"
     NEW_DRV_DIR = "internal_lstm_models/NN_Application/Nets/Drivetrain"
     CSV_PATH = "internal_lstm_models/Test_Cycles/WLTC.csv"
+
+    # Define Output Columns (from config.txt)
+    ICE_COLS = [
+        "ICE_Torque_Nm",
+        "fuel_tot_gps",
+        "NOx_eo_gps",
+        "CO_eo_gps",
+        "THC_eo_gps",
+        "T_gas_eo_K",
+        "NOx_tp_gps",
+        "CO_tp_gps",
+        "CO2_tp_gps",
+        "THC_tp_gps",
+        "T_Wall_SCR1_K",
+        "T_Wall_DOC_K",
+        "T_Sub_DPF_K",
+        "T_Wall_SCR2_K",
+        "T_Wall_SCR3_K",
+        "T_gas_tp_K",
+    ]
+    DRV_COLS = ["Car_Speed_kmph", "SOC_1"]
 
     # 1. LOAD DATA
     print(f"Loading data from {CSV_PATH}...")
@@ -201,18 +234,27 @@ def main():
         new_ice = NewModelWrapper(NEW_ICE_DIR, "ICE")
         new_drv = NewModelWrapper(NEW_DRV_DIR, "Drivetrain")
 
-        # Init with zeros (just for timing)
-        aux_ice = np.zeros((1, new_ice.output_scaler.n_features_in_))
-        aux_drv = np.zeros((1, new_drv.output_scaler.n_features_in_))
+        # Init Values from config.txt
+        # ICE Init: 0, 0, 0, 0, 0, 298, 0, 0, 0, 0, 298, 298, 298, 298, 298, 298
+        ice_init_vals = np.array(
+            [[0, 0, 0, 0, 0, 298, 0, 0, 0, 0, 298, 298, 298, 298, 298, 298]],
+            dtype=np.float32,
+        )
 
-        new_ice.initialize(aux_ice)
-        new_drv.initialize(aux_drv)
+        # Drivetrain Init: 0, 0.7
+        drv_init_vals = np.array([[0, 0.7]], dtype=np.float32)
 
-        new_ice.reset_states()
-        new_drv.reset_states()
+        print("Initializing models with config values...")
+        new_ice.initialize(ice_init_vals)
+        new_drv.initialize(drv_init_vals)
 
-        # Warmup
-        new_ice.step(data[0:1])
+        # Note: Do NOT call reset_states() here anymore as it wipes the init!
+        # new_ice.reset_states()
+        # new_drv.reset_states()
+
+        # Warmup (Careful: Warmup step changes state! Ideally warmup with separate instance or reset)
+        # For strict correctness, skip warmup or create separate warmup instance.
+        # We will skip warmup to preserve initialized state for t=0.
 
         with Timer() as t_new:
             for i in range(len(data)):
@@ -220,8 +262,7 @@ def main():
                 ice_out = new_ice.step(data[i : i + 1])
                 ice_results.append(ice_out.flatten())
 
-                # 2. Extract Torque (Index 0)
-                # ice_out is (1, 16) numpy array
+                # 2. Extract Torque (Index 0 is ICE_Torque_Nm)
                 torque = ice_out[0, 0]
 
                 # 3. Prediction Drivetrain
@@ -238,19 +279,15 @@ def main():
         ice_np = np.array(ice_results)
         drv_np = np.array(drv_results)
 
-        # Try to get column names from scalers
-        try:
-            ice_cols = [
-                f"ICE_{name}" for name in new_ice.output_scaler.feature_names_in_
-            ]
-        except AttributeError:
+        # Use Explicit Column Names
+        if ice_np.shape[1] == len(ICE_COLS):
+            ice_cols = [f"ICE_{c}" for c in ICE_COLS]
+        else:
             ice_cols = [f"ICE_Out_{j}" for j in range(ice_np.shape[1])]
 
-        try:
-            drv_cols = [
-                f"DRV_{name}" for name in new_drv.output_scaler.feature_names_in_
-            ]
-        except AttributeError:
+        if drv_np.shape[1] == len(DRV_COLS):
+            drv_cols = [f"DRV_{c}" for c in DRV_COLS]
+        else:
             drv_cols = [f"DRV_Out_{j}" for j in range(drv_np.shape[1])]
 
         df_res = pd.DataFrame(np.hstack([ice_np, drv_np]), columns=ice_cols + drv_cols)
