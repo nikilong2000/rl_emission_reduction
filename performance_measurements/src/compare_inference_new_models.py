@@ -328,7 +328,9 @@ def main():
         df_res = pd.DataFrame(
             np.hstack([ice_np, drv_np]), columns=ice_cols_final + drv_cols_final
         )
-        df_res.to_csv("new_model_predictions.csv", index=False)
+        df_res.to_csv(
+            os.path.join(os.pardir, "results", "new_model_predictions.csv"), index=False
+        )
         print("Results saved.")
 
     except Exception as e:

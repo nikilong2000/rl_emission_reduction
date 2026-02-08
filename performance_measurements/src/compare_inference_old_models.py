@@ -115,10 +115,30 @@ def main():
     print(f"Loading data from {CSV_PATH}...")
     try:
         df = pd.read_csv(CSV_PATH, sep=";", decimal=",")
-        data = df[["ICE_Speed_rpm", "fuel_mg", "T_amb_K", "p_amb_bar"]].values.astype(
-            np.float32
-        )
+
+        # Helper to find columns loosely (like Modular_NN)
+        def get_col(name):
+            if name in df.columns:
+                return df[name].values
+            for c in df.columns:
+                if c.split("(")[0].strip() == name:
+                    return df[c].values
+            raise KeyError(f"Column '{name}' not found in CSV")
+
+        # Extract Inputs required for simulation
+        ice_speed = get_col("ICE_Speed_rpm")
+        fuel = get_col("fuel_mg")
+        t_amb = get_col("T_amb_K")
+        p_amb = get_col("p_amb_bar")
+        em2_torque = get_col("EM2_Torque_Nm")
+        brake = get_col("Brake_perc")
+
+        # Stack inputs: [Speed, Fuel, T_amb, P_amb, EM2, Brake]
+        data = np.column_stack(
+            [ice_speed, fuel, t_amb, p_amb, em2_torque, brake]
+        ).astype(np.float32)
         print(f"Data loaded: {len(data)} steps.")
+
     except Exception as e:
         print(f"Data loading failed: {e}")
         return
@@ -156,12 +176,17 @@ def main():
         drv_old = OldModelWrapper(OLD_PG_DIR, "Drivetrain")
 
         # Warmup
-        ice_old.predict_step(data[0:1])
+        # Input indices: [0:Speed, 1:Fuel, 2:T_amb, 3:P_amb]
+        ice_in_warmup = data[0, [0, 1, 2, 3]].reshape(1, 1, -1)
+        ice_old.predict_step(ice_in_warmup)
 
         with Timer() as t_old:
             for i in range(len(data)):
                 # 1. Prediction ICE
-                ice_out_tensor = ice_old.predict_step(data[i : i + 1])
+                # Inputs: [Speed, Fuel, T_amb, P_amb]
+                ice_in = data[i, [0, 1, 2, 3]].reshape(1, 1, -1)
+
+                ice_out_tensor = ice_old.predict_step(ice_in)
                 ice_out = ice_out_tensor.numpy()
                 ice_results.append(ice_out)
 
@@ -170,9 +195,9 @@ def main():
 
                 # 3. Prediction Drivetrain
                 # Inputs: [Speed_rpm, Torque_Nm, EM2_Torque_Nm, Brake_perc]
-                # Speed from Cycle data, Torque from ICE, EM2/Brake fixed dummies (50, 0)
+                # Speed from Cycle (index 0), Torque from ICE, EM2 (index 4), Brake (index 5)
                 drv_input = np.array(
-                    [[data[i][0], torque, 50.0, 0.0]], dtype=np.float32
+                    [[data[i, 0], torque, data[i, 4], data[i, 5]]], dtype=np.float32
                 )
                 drv_out_tensor = drv_old.predict_step(drv_input)
                 drv_results.append(drv_out_tensor.numpy())
@@ -198,7 +223,11 @@ def main():
             drv_cols = [f"DRV_Out_{j}" for j in range(drv_np.shape[1])]
 
         df_res = pd.DataFrame(np.hstack([ice_np, drv_np]), columns=ice_cols + drv_cols)
-        df_res.to_csv("old_model_predictions.csv", index=False)
+        df_res.to_csv(
+            os.path.join(os.pardir, "results", "old_model_predictions.csv"),
+            index=False,
+        )
+
         print("Results saved.")
 
     except Exception as e:
