@@ -70,10 +70,10 @@ class OldModelWrapper:
         self.aux_dims = 5 if model_type == "ICE" else 2
 
         # Pre-calc constants
-        self._in_scale = tf.constant(self.input_scaler.scale_, dtype=tf.float32)
-        self._in_min = tf.constant(self.input_scaler.min_, dtype=tf.float32)
-        self._out_scale = tf.constant(self.output_scaler.scale_, dtype=tf.float32)
-        self._out_min = tf.constant(self.output_scaler.min_, dtype=tf.float32)
+        self._in_scale = tf.constant(self.input_scaler.scale_, dtype=tf.float64)
+        self._in_min = tf.constant(self.input_scaler.min_, dtype=tf.float64)
+        self._out_scale = tf.constant(self.output_scaler.scale_, dtype=tf.float64)
+        self._out_min = tf.constant(self.output_scaler.min_, dtype=tf.float64)
 
         # Constant Aux (simplified for benchmark)
         initial_aux = np.zeros((1, self.aux_dims))
@@ -83,7 +83,7 @@ class OldModelWrapper:
         aux_scaled = self.output_scaler.transform(initial_aux).reshape(
             (1, 1, self.aux_dims)
         )
-        self.aux = tf.constant(aux_scaled, dtype=tf.float32)
+        self.aux = tf.constant(aux_scaled, dtype=tf.float64)
 
     @tf.function
     def predict_step(self, inputs):
@@ -116,7 +116,7 @@ def main():
     try:
         df = pd.read_csv(CSV_PATH, sep=";", decimal=",")
         data = df[["ICE_Speed_rpm", "fuel_mg", "T_amb_K", "p_amb_bar"]].values.astype(
-            np.float32
+            np.float64
         )
         print(f"Data loaded: {len(data)} steps.")
     except Exception as e:
@@ -172,7 +172,7 @@ def main():
                 # Inputs: [Speed_rpm, Torque_Nm, EM2_Torque_Nm, Brake_perc]
                 # Speed from Cycle data, Torque from ICE, EM2/Brake fixed dummies (50, 0)
                 drv_input = np.array(
-                    [[data[i][0], torque, 50.0, 0.0]], dtype=np.float32
+                    [[data[i][0], torque, 50.0, 0.0]], dtype=np.float64
                 )
                 drv_out_tensor = drv_old.predict_step(drv_input)
                 drv_results.append(drv_out_tensor.numpy())

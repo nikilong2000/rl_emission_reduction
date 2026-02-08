@@ -15,9 +15,8 @@ os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 # Allow unsafe deserialization (Required for some custom objects)
 tf.keras.config.enable_unsafe_deserialization()
 
+
 # --- UTILS ---
-
-
 class Timer:
     def __init__(self):
         self.start = 0
@@ -33,76 +32,89 @@ class Timer:
         self.duration = self.end - self.start
 
 
-# --- OLD MODEL WRAPPER (LEGACY SUPPORT ATTEMPT) ---
-# Note: These models were trained with TensorFlow < 2.10 and likely use
-# 'tensorflow_addons.rnn.LayerNormLSTMCell' or inconsistent Keras 2 serialization.
-# Loading them in stock TF 2.18 is highly experimental and likely to fail.
+# --- CONFIG PARSER (FROM MODULAR_NN) ---
+def parse_config(config_path):
+    config = {}
+    global_settings = {}
+    current_network = None
+
+    def to_bool(val: str) -> bool:
+        return str(val).strip().lower() in ("true", "1", "yes", "y")
+
+    with open(config_path, "r") as file:
+        lines = file.readlines()
+        for raw in lines:
+            line = raw.strip()
+            if not line:
+                continue
+
+            if "=" not in line:
+                current_network = line
+                config[current_network] = {}
+                continue
+
+            key, value = map(str.strip, line.split("=", 1))
+
+            if current_network is None:
+                global_settings[key] = value
+                continue
+
+            if key == "directory":
+                config[current_network]["directory"] = value
+            elif key == "inputs":
+                config[current_network]["inputs"] = [
+                    x.strip() for x in value.split(",")
+                ]
+            elif key == "outputs":
+                config[current_network]["outputs"] = [
+                    x.strip() for x in value.split(",")
+                ]
+            elif key == "stateful":
+                config[current_network]["stateful"] = to_bool(value)
+            elif key == "initial_outputs":
+                config[current_network]["initial_outputs"] = [
+                    float(x.strip()) for x in value.split(",")
+                ]
+    return config, global_settings
 
 
-class CustomLSTM(LSTM):
-    """Attempt to patch 'time_major' argument mismatch in Keras 3."""
+def get_initial_values(details, df):
+    """
+    Replicates 'aux_initial_true_values' logic from Modular_NN.
+    Prioritizes 'initial_outputs' in config.
+    Falls back to first row of 'outputs' in CSV (df).
+    """
+    if "initial_outputs" in details and "outputs" in details:
+        # Use Config Values
+        vals = details["initial_outputs"]
+    elif "outputs" in details:
+        # Fallback to CSV Truth
+        vals = []
+        for name in details["outputs"]:
+            # Need to find column name in df (might have units/brackets)
+            # Modular_NN splits by '(' or ' '. We do simple check.
+            match = None
+            if name in df.columns:
+                match = name
+            else:
+                # Try matching start
+                for col in df.columns:
+                    if col.startswith(name):
+                        match = col
+                        break
 
-    def __init__(self, *args, **kwargs):
-        kwargs.pop("time_major", None)
-        super().__init__(*args, **kwargs)
-        self.input_spec = None
+            if match:
+                vals.append(float(df[match].iloc[0]))
+            else:
+                vals.append(0.0)
+    else:
+        # Fallback zeros of generic size (risky, but shouldn't happen with valid config)
+        vals = [0.0]
 
-
-class OldModelWrapper:
-    def __init__(self, model_dir, model_type="ICE"):
-        self.model_type = model_type
-        self.model_path = os.path.join(model_dir, "model.h5")
-        print(f"Loading Old {model_type} Model from {self.model_path}")
-
-        # Attempt to load with custom LSTM and compile=False
-        try:
-            self.model = load_model(
-                self.model_path, compile=False, custom_objects={"LSTM": CustomLSTM}
-            )
-        except Exception as e:
-            raise RuntimeError(f"Keras Version Incompatibility: {e}")
-
-        # Load scalers
-        self.input_scaler = joblib.load(os.path.join(model_dir, "input_scaler.lib"))
-        self.output_scaler = joblib.load(os.path.join(model_dir, "output_scaler.lib"))
-
-        # Determine Aux dims
-        self.aux_dims = 5 if model_type == "ICE" else 2
-
-        # Pre-calc constants
-        self._in_scale = tf.constant(self.input_scaler.scale_, dtype=tf.float32)
-        self._in_min = tf.constant(self.input_scaler.min_, dtype=tf.float32)
-        self._out_scale = tf.constant(self.output_scaler.scale_, dtype=tf.float32)
-        self._out_min = tf.constant(self.output_scaler.min_, dtype=tf.float32)
-
-        # Constant Aux (simplified for benchmark)
-        initial_aux = np.zeros((1, self.aux_dims))
-        if model_type != "ICE":
-            initial_aux[0, 1] = 0.7  # SOC
-
-        aux_scaled = self.output_scaler.transform(initial_aux).reshape(
-            (1, 1, self.aux_dims)
-        )
-        self.aux = tf.constant(aux_scaled, dtype=tf.float32)
-
-    @tf.function(jit_compile=False)
-    def predict_step(self, inputs):
-        # Scale
-        x_scaled = (inputs * self._in_scale) + self._in_min
-        x_scaled = tf.reshape(x_scaled, (1, 1, -1))
-
-        # Predict: Old model signature is called with list [x, aux]
-        y_scaled = self.model([x_scaled, self.aux], training=False)
-        y_scaled = tf.reshape(y_scaled, (-1,))
-
-        # Descale
-        y = (y_scaled - self._out_min) / self._out_scale
-        return y
+    return np.array([vals], dtype=np.float64)
 
 
 # --- NEW MODEL WRAPPER ---
-
-
 class NewModelWrapper:
     def __init__(self, model_dir, model_name="ICE"):
         self.model_name = model_name
@@ -182,48 +194,64 @@ class NewModelWrapper:
 
 def main():
     print("--- BENCHMARK STARTED ---")
-    OLD_ICE_DIR = "controller_for_ICE_PG/src/models_markus/ICE_Model_Update_01"
-    OLD_PG_DIR = (
-        "controller_for_ICE_PG/src/models_markus/PG_Model_M1.1_without_EM1_Torque"
-    )
+
+    # Paths
+    CONFIG_PATH = "internal_lstm_models/NN_Application/config.txt"
     NEW_ICE_DIR = "internal_lstm_models/NN_Application/Nets/ICE"
     NEW_DRV_DIR = "internal_lstm_models/NN_Application/Nets/Drivetrain"
     CSV_PATH = "internal_lstm_models/Test_Cycles/WLTC.csv"
 
-    # Define Output Columns (from config.txt)
-    ICE_COLS = [
-        "ICE_Torque_Nm",
-        "fuel_tot_gps",
-        "NOx_eo_gps",
-        "CO_eo_gps",
-        "THC_eo_gps",
-        "T_gas_eo_K",
-        "NOx_tp_gps",
-        "CO_tp_gps",
-        "CO2_tp_gps",
-        "THC_tp_gps",
-        "T_Wall_SCR1_K",
-        "T_Wall_DOC_K",
-        "T_Sub_DPF_K",
-        "T_Wall_SCR2_K",
-        "T_Wall_SCR3_K",
-        "T_gas_tp_K",
-    ]
-    DRV_COLS = ["Car_Speed_kmph", "SOC_1"]
+    # 1. PARSE CONFIG
+    print(f"Parsing config from {CONFIG_PATH}...")
+    config, _ = parse_config(CONFIG_PATH)
 
-    # 1. LOAD DATA
+    # Extract Columns from Config
+    ice_conf = config.get("ICE")
+    drv_conf = config.get("Drivetrain")
+
+    ICE_COLS = ice_conf.get("outputs", [])
+    DRV_COLS = drv_conf.get("outputs", [])
+
+    print(f"ICE Outputs defined: {len(ICE_COLS)}")
+    print(f"Drivetrain Outputs defined: {len(DRV_COLS)}")
+
+    # 2. LOAD DATA
     print(f"Loading data from {CSV_PATH}...")
+
+    # Load all columns to support init fallback
+    df = pd.read_csv(CSV_PATH, sep=";")
+
+    # Helper to find columns loosely (like Modular_NN)
+    def get_col(name):
+        if name in df.columns:
+            return df[name].values
+        for c in df.columns:
+            if c.split("(")[0].strip() == name:
+                return df[c].values
+        raise KeyError(f"Column '{name}' not found in CSV")
+
+    # Extract Inputs
+    # We explicitly grab the columns needed for the loop to avoid magic numbers
+    # ICE Inputs: ICE_Speed_rpm, fuel_mg, T_amb_K, p_amb_bar
+    # Drv Inputs: ICE_Speed_rpm, (Torque), EM2_Torque_Nm, Brake_perc
     try:
-        df = pd.read_csv(CSV_PATH, sep=";", decimal=",")
-        data = df[["ICE_Speed_rpm", "fuel_mg", "T_amb_K", "p_amb_bar"]].values.astype(
-            np.float32
-        )
-        print(f"Data loaded: {len(data)} steps.")
-    except Exception as e:
-        print(f"Data loading failed: {e}")
+        ice_speed = get_col("ICE_Speed_rpm")
+        fuel = get_col("fuel_mg")
+        t_amb = get_col("T_amb_K")
+        p_amb = get_col("p_amb_bar")
+        em2_torque = get_col("EM2_Torque_Nm")
+        brake = get_col("Brake_perc")
+    except KeyError as e:
+        print(f"Error loading inputs: {e}")
         return
 
-    # 2. BENCHMARK NEW MODELS
+    # Stack for iteration: [Speed, Fuel, T_amb, P_amb, EM2, Brake]
+    data = np.column_stack([ice_speed, fuel, t_amb, p_amb, em2_torque, brake]).astype(
+        np.float64
+    )
+    print(f"Data loaded: {len(data)} steps.")
+
+    # 3. BENCHMARK NEW MODELS
     print("\n--- Benchmarking NEW Models ---")
 
     # Store results
@@ -234,40 +262,45 @@ def main():
         new_ice = NewModelWrapper(NEW_ICE_DIR, "ICE")
         new_drv = NewModelWrapper(NEW_DRV_DIR, "Drivetrain")
 
-        # Init Values from config.txt
-        # ICE Init: 0, 0, 0, 0, 0, 298, 0, 0, 0, 0, 298, 298, 298, 298, 298, 298
-        ice_init_vals = np.array(
-            [[0, 0, 0, 0, 0, 298, 0, 0, 0, 0, 298, 298, 298, 298, 298, 298]],
-            dtype=np.float32,
-        )
+        # Determine Initial Values using Logic from Modular_NN
+        print("Determining initial values...")
+        ice_init_vals = get_initial_values(ice_conf, df)
+        drv_init_vals = get_initial_values(drv_conf, df)
 
-        # Drivetrain Init: 0, 0.7
-        drv_init_vals = np.array([[0, 0.7]], dtype=np.float32)
+        print(f"ICE Init Vector (Shape {ice_init_vals.shape}):\n {ice_init_vals}")
+        print(f"Drv Init Vector (Shape {drv_init_vals.shape}):\n {drv_init_vals}")
 
-        print("Initializing models with config values...")
         new_ice.initialize(ice_init_vals)
         new_drv.initialize(drv_init_vals)
 
         # Note: Do NOT call reset_states() here anymore as it wipes the init!
-        # new_ice.reset_states()
-        # new_drv.reset_states()
-
-        # Warmup (Careful: Warmup step changes state! Ideally warmup with separate instance or reset)
-        # For strict correctness, skip warmup or create separate warmup instance.
-        # We will skip warmup to preserve initialized state for t=0.
 
         with Timer() as t_new:
             for i in range(len(data)):
+                # Data indices based on stack above:
+                # 0: Speed, 1: Fuel, 2: T_amb, 3: P_amb, 4: EM2, 5: Brake
+
                 # 1. Prediction ICE
-                ice_out = new_ice.step(data[i : i + 1])
+                # Inputs: [Speed, Fuel, T_amb, P_amb]
+                ice_in = data[i, [0, 1, 2, 3]].reshape(1, -1)
+
+                ice_out = new_ice.step(ice_in)
                 ice_results.append(ice_out.flatten())
 
-                # 2. Extract Torque (Index 0 is ICE_Torque_Nm)
-                torque = ice_out[0, 0]
+                # 2. Extract Torque
+                if "ICE_Torque_Nm" in ICE_COLS:
+                    torque_idx = ICE_COLS.index("ICE_Torque_Nm")
+                else:
+                    torque_idx = 0
+
+                torque = ice_out[0, torque_idx]
 
                 # 3. Prediction Drivetrain
-                drv_input = np.array([[data[i][0], torque, 50.0, 0.0]])
-                drv_out = new_drv.step(drv_input)
+                # Inputs: ICE_Speed_rpm, ICE: ICE_Torque_Nm, EM2_Torque_Nm, Brake_perc
+                # Constructed: [Speed, Torque, EM2, Brake]
+                drv_input_val = np.array([[data[i, 0], torque, data[i, 4], data[i, 5]]])
+
+                drv_out = new_drv.step(drv_input_val)
                 drv_results.append(drv_out.flatten())
 
         print(
@@ -279,18 +312,22 @@ def main():
         ice_np = np.array(ice_results)
         drv_np = np.array(drv_results)
 
-        # Use Explicit Column Names
-        if ice_np.shape[1] == len(ICE_COLS):
-            ice_cols = [f"ICE_{c}" for c in ICE_COLS]
-        else:
-            ice_cols = [f"ICE_Out_{j}" for j in range(ice_np.shape[1])]
+        # Use Explicit Column Names from Config
+        ice_cols_final = [f"ICE_{c}" for c in ICE_COLS]
+        drv_cols_final = [f"DRV_{c}" for c in DRV_COLS]
 
-        if drv_np.shape[1] == len(DRV_COLS):
-            drv_cols = [f"DRV_{c}" for c in DRV_COLS]
-        else:
-            drv_cols = [f"DRV_Out_{j}" for j in range(drv_np.shape[1])]
+        # Safety check on shapes
+        if ice_np.shape[1] != len(ice_cols_final):
+            print("Warning: ICE output shape mismatch with config columns.")
+            ice_cols_final = [f"ICE_Out_{j}" for j in range(ice_np.shape[1])]
 
-        df_res = pd.DataFrame(np.hstack([ice_np, drv_np]), columns=ice_cols + drv_cols)
+        if drv_np.shape[1] != len(drv_cols_final):
+            print("Warning: Drv output shape mismatch with config columns.")
+            drv_cols_final = [f"DRV_Out_{j}" for j in range(drv_np.shape[1])]
+
+        df_res = pd.DataFrame(
+            np.hstack([ice_np, drv_np]), columns=ice_cols_final + drv_cols_final
+        )
         df_res.to_csv("new_model_predictions.csv", index=False)
         print("Results saved.")
 
