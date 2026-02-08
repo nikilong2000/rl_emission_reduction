@@ -111,7 +111,7 @@ def get_initial_values(details, df):
         # Fallback zeros of generic size (risky, but shouldn't happen with valid config)
         vals = [0.0]
 
-    return np.array([vals], dtype=np.float64)
+    return np.array([vals], dtype=np.float32)
 
 
 # --- NEW MODEL WRAPPER ---
@@ -247,7 +247,7 @@ def main():
 
     # Stack for iteration: [Speed, Fuel, T_amb, P_amb, EM2, Brake]
     data = np.column_stack([ice_speed, fuel, t_amb, p_amb, em2_torque, brake]).astype(
-        np.float64
+        np.float32
     )
     print(f"Data loaded: {len(data)} steps.")
 
