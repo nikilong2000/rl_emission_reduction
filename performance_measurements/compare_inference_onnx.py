@@ -158,9 +158,9 @@ def main():
     print("--- BENCHMARK STARTED (ONNX MODELS) ---")
 
     # Paths
-    ONNX_ICE_DIR = "controller_for_ICE_PG/SHARE/CTTC_models/ONNX/ICE"
-    ONNX_PG_DIR = "controller_for_ICE_PG/SHARE/CTTC_models/ONNX/PG"
-    CSV_PATH = "internal_lstm_models/Test_Cycles/WLTC.csv"
+    ONNX_ICE_DIR = "../controller_for_ICE_PG/SHARE/CTTC_models/ONNX/ICE"
+    ONNX_PG_DIR = "../controller_for_ICE_PG/SHARE/CTTC_models/ONNX/PG"
+    CSV_PATH = "../internal_lstm_models/Test_Cycles/WLTC.csv"
 
     # 1. LOAD DATA
     print(f"Loading data from {CSV_PATH}...")
@@ -272,7 +272,7 @@ def main():
 
         df_res = pd.DataFrame(np.hstack([ice_np, drv_np]), columns=ice_cols + drv_cols)
         df_res.to_csv(
-            os.path.join(os.pardir, "results", "onnx_model_predictions.csv"),
+            "onnx_model_predictions.csv",
             index=False,
         )
         print("Results saved.")

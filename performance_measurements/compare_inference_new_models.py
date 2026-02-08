@@ -196,10 +196,10 @@ def main():
     print("--- BENCHMARK STARTED ---")
 
     # Paths
-    CONFIG_PATH = "internal_lstm_models/NN_Application/config.txt"
-    NEW_ICE_DIR = "internal_lstm_models/NN_Application/Nets/ICE"
-    NEW_DRV_DIR = "internal_lstm_models/NN_Application/Nets/Drivetrain"
-    CSV_PATH = "internal_lstm_models/Test_Cycles/WLTC.csv"
+    CONFIG_PATH = "../internal_lstm_models/NN_Application/config.txt"
+    NEW_ICE_DIR = "../internal_lstm_models/NN_Application/Nets/ICE"
+    NEW_DRV_DIR = "../internal_lstm_models/NN_Application/Nets/Drivetrain"
+    CSV_PATH = "../internal_lstm_models/Test_Cycles/WLTC.csv"
 
     # 1. PARSE CONFIG
     print(f"Parsing config from {CONFIG_PATH}...")
@@ -329,7 +329,8 @@ def main():
             np.hstack([ice_np, drv_np]), columns=ice_cols_final + drv_cols_final
         )
         df_res.to_csv(
-            os.path.join(os.pardir, "results", "new_model_predictions.csv"), index=False
+            "new_model_predictions.csv",
+            index=False,
         )
         print("Results saved.")
 

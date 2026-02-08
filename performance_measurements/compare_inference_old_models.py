@@ -105,16 +105,16 @@ class OldModelWrapper:
 
 def main():
     print("--- BENCHMARK STARTED (OLD MODELS ONLY) ---")
-    OLD_ICE_DIR = "controller_for_ICE_PG/src/models_markus/ICE_Model_Update_01"
+    OLD_ICE_DIR = "../controller_for_ICE_PG/src/models_markus/ICE_Model_Update_01"
     OLD_PG_DIR = (
-        "controller_for_ICE_PG/src/models_markus/PG_Model_M1.1_without_EM1_Torque"
+        "../controller_for_ICE_PG/src/models_markus/PG_Model_M1.1_without_EM1_Torque"
     )
-    CSV_PATH = "internal_lstm_models/Test_Cycles/WLTC.csv"
+    CSV_PATH = "../internal_lstm_models/Test_Cycles/WLTC.csv"
 
     # 1. LOAD DATA
     print(f"Loading data from {CSV_PATH}...")
     try:
-        df = pd.read_csv(CSV_PATH, sep=";", decimal=",")
+        df = pd.read_csv(CSV_PATH, sep=";")
 
         # Helper to find columns loosely (like Modular_NN)
         def get_col(name):
@@ -224,10 +224,9 @@ def main():
 
         df_res = pd.DataFrame(np.hstack([ice_np, drv_np]), columns=ice_cols + drv_cols)
         df_res.to_csv(
-            os.path.join(os.pardir, "results", "old_model_predictions.csv"),
+            "old_model_predictions.csv",
             index=False,
         )
-
         print("Results saved.")
 
     except Exception as e:
