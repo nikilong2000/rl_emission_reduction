@@ -133,12 +133,10 @@ class NewModelWrapper:
         # Note: We trust the scaler for transform, but need to be careful if model input requires subset
         # For this benchmark, we assume standard usage.
 
-        # Setup compiled interactions
-        @tf.function(jit_compile=False)
+        # Setup interactions (Removed @tf.function to ensure stateful execution updates internal variables)
         def predict_main(input_tensor):
             return self.model_main(input_tensor)
 
-        @tf.function(jit_compile=False)
         def predict_init(input_tensor):
             return self.model_init(input_tensor)
 

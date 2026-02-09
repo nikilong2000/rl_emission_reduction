@@ -220,10 +220,10 @@ def main():
         ice_onnx = ONNXModelWrapper(ONNX_ICE_DIR, "ICE_onnx.onnx", "ICE")
         drv_onnx = ONNXModelWrapper(ONNX_PG_DIR, "PG_onnx.onnx", "Drivetrain")
 
-        # Warmup
-        ice_in_warmup = data[0, [0, 1, 2, 3]].reshape(1, -1)
-        ice_onnx.step(ice_in_warmup)
-        ice_onnx.reset_states()
+        # # Warmup
+        # ice_in_warmup = data[0, [0, 1, 2, 3]].reshape(1, -1)
+        # ice_onnx.step(ice_in_warmup)
+        # ice_onnx.reset_states()
 
         with Timer() as t_onnx:
             for i in range(len(data)):

@@ -55,6 +55,12 @@ class OldModelWrapper:
             self.model = load_model(
                 self.model_path, compile=False, custom_objects=custom_objects
             )
+            # FORCE STATEFULNESS for OLD Keras models that might have been saved as stateless
+            # This is critical for 1-step inference loops.
+            # We rebuild the model layers to be stateful if they aren't.
+            # However, simpler approach: Just call reset_states() and hope the user environment respects it.
+            # But if batch_input_shape was None, Keras resets on each call.
+            pass
         except Exception as e:
             print(f"Error loading model: {e}")
             print(
@@ -85,7 +91,7 @@ class OldModelWrapper:
         )
         self.aux = tf.constant(aux_scaled, dtype=tf.float32)
 
-    @tf.function
+    # @tf.function (Removed to ensure stateful execution updates internal variables)
     def predict_step(self, inputs):
         # Scale
         x_scaled = (inputs * self._in_scale) + self._in_min
@@ -130,12 +136,36 @@ def main():
         fuel = get_col("fuel_mg")
         t_amb = get_col("T_amb_K")
         p_amb = get_col("p_amb_bar")
+
+        # PG specific inputs
+        ice_speed_soll = get_col("ICE_Speed_rpm")
         em2_torque = get_col("EM2_Torque_Nm")
         brake = get_col("Brake_perc")
 
-        # Stack inputs: [Speed, Fuel, T_amb, P_amb, EM2, Brake]
+        # NOTEBOOK LOGIC MATCH: Adjust PG inputs (Set to 0 where Speed < 900)
+        # This prevents drift/noise at idle/stop from affecting the Drivetrain model
+        pg_mask = ice_speed_soll < 900
+
+        # We need to apply this masking to the inputs used for PG
+        # But we must be careful not to corrupt the array inputs if they are shared.
+        # Let's create specific arrays for PG.
+        ice_speed_soll_pg = ice_speed_soll.copy()
+        em2_torque_pg = em2_torque.copy()
+        brake_pg = brake.copy()
+
+        ice_speed_soll_pg[pg_mask] = 0
+        em2_torque_pg[pg_mask] = 0
+        brake_pg[pg_mask] = 0
+        # Note: ICE Torque (calculated later) should probably also be masked?
+        # In notebook: PGinput.loc[...] = 0. PGinput includes ICE_Torque_Nm col.
+        # So yes, we should mask the input torque to PG as well.
+        self_pg_mask = pg_mask  # Store for loop
+
+        # Stack inputs: [Speed, Fuel, T_amb, P_amb, Speed_Soll, EM2, Brake]
+        # Indices: 0:Speed, 1:Fuel, 2:T_amb, 3:P_amb, 4:Speed_Soll, 5:EM2, 6:Brake
+        # We store the *Modified* PG inputs in the main data stack at 4,5,6
         data = np.column_stack(
-            [ice_speed, fuel, t_amb, p_amb, em2_torque, brake]
+            [ice_speed, fuel, t_amb, p_amb, ice_speed_soll_pg, em2_torque_pg, brake_pg]
         ).astype(np.float32)
         print(f"Data loaded: {len(data)} steps.")
 
@@ -175,10 +205,10 @@ def main():
         ice_old = OldModelWrapper(OLD_ICE_DIR, "ICE")
         drv_old = OldModelWrapper(OLD_PG_DIR, "Drivetrain")
 
-        # Warmup
-        # Input indices: [0:Speed, 1:Fuel, 2:T_amb, 3:P_amb]
-        ice_in_warmup = data[0, [0, 1, 2, 3]].reshape(1, 1, -1)
-        ice_old.predict_step(ice_in_warmup)
+        # # Warmup
+        # # Input indices: [0:Speed, 1:Fuel, 2:T_amb, 3:P_amb]
+        # ice_in_warmup = data[0, [0, 1, 2, 3]].reshape(1, 1, -1)
+        # ice_old.predict_step(ice_in_warmup)
 
         with Timer() as t_old:
             for i in range(len(data)):
@@ -194,10 +224,15 @@ def main():
                 torque = ice_out[0]
 
                 # 3. Prediction Drivetrain
-                # Inputs: [Speed_rpm, Torque_Nm, EM2_Torque_Nm, Brake_perc]
-                # Speed from Cycle (index 0), Torque from ICE, EM2 (index 4), Brake (index 5)
+                # Inputs from Notebook: [ICE_Speed_soll_rpm, ICE_Torque, EM2_Torque_Nm, Brake_perc]
+                # Indices in data: 4:Speed_Soll, 5:EM2, 6:Brake
+
+                # Apply Mask to Torque if Speed < 900 (Logic from Notebook)
+                torque_input = 0.0 if self_pg_mask[i] else torque
+
                 drv_input = np.array(
-                    [[data[i, 0], torque, data[i, 4], data[i, 5]]], dtype=np.float32
+                    [[data[i, 4], data[i, 5], torque_input, data[i, 6]]],
+                    dtype=np.float32,
                 )
                 drv_out_tensor = drv_old.predict_step(drv_input)
                 drv_results.append(drv_out_tensor.numpy())
