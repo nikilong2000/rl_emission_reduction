@@ -17,6 +17,13 @@ if current_dir not in sys.path:
 # Import helper functions from Modular_NN
 from Modular_NN import load_network, set_states, load_scaler
 
+import warnings
+
+warnings.filterwarnings(
+    "ignore",
+    message="X does not have valid feature names, but MinMaxScaler was fitted with feature names",
+)
+
 # Configuration
 ICE_MODEL_DIR = os.path.join(current_dir, "Nets", "ICE")
 PG_MODEL_DIR = os.path.join(current_dir, "Nets", "Drivetrain")
