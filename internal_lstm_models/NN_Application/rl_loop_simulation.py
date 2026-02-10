@@ -229,6 +229,7 @@ def main():
     plt.title("Car Speed Prediction (Closed Loop)")
     plt.xlabel("Time (s)")
     plt.ylabel("Speed (km/h)")
+    plt.yticks(np.arange(-40.0, 140.0, step=20.0))  # To align with the other plots
     plt.legend()
     plt.grid(True)
     plt.savefig(os.path.join(OUTPUT_DIR, "car_speed.png"))
@@ -241,12 +242,19 @@ def main():
     plt.title("SOC Prediction (Closed Loop)")
     plt.xlabel("Time (s)")
     plt.ylabel("SOC")
+    plt.yticks(np.arange(0, 0.9, step=0.2))  # To align with the other plots
     plt.legend()
     plt.grid(True)
     plt.savefig(os.path.join(OUTPUT_DIR, "soc.png"))
     plt.close()
 
     print(f"Plots saved to {OUTPUT_DIR}")
+
+    # Save Results to CSV
+    results_df = pd.DataFrame(results)
+    csv_output_path = os.path.join(OUTPUT_DIR, "simulation_results.csv")
+    results_df.to_csv(csv_output_path, index=False)
+    print(f"Results saved to {csv_output_path}")
 
 
 if __name__ == "__main__":

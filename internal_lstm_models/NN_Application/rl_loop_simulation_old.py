@@ -258,6 +258,7 @@ def main():
     plt.title("Car Speed Prediction (Old Model)")
     plt.xlabel("Time (s)")
     plt.ylabel("Speed (km/h)")
+    plt.yticks(np.arange(-40.0, 140.0, step=20.0))  # To align with the other plots
     plt.legend()
     plt.grid(True)
     plt.savefig(os.path.join(OUTPUT_DIR, "car_speed_old.png"))
@@ -272,6 +273,7 @@ def main():
     plt.title("SOC Prediction (Old Model)")
     plt.xlabel("Time (s)")
     plt.ylabel("SOC")
+    plt.yticks(np.arange(0, 0.9, step=0.2))  # To align with the other plots
     plt.legend()
     plt.grid(True)
     plt.savefig(os.path.join(OUTPUT_DIR, "soc_old.png"))
