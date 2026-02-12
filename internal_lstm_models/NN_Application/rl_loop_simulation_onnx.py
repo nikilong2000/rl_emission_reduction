@@ -126,7 +126,10 @@ def main():
     # Initial auxiliary inputs
     # Match Legacy Simulation: Initialize to Zeros in SCALED domain directly
     # Legacy: ice_aux = np.zeros((1, 1, 5), dtype=np.float32)
-    ice_aux_scaled = np.zeros((1, 1, 5), dtype=np.float32)
+    # ice_aux = np.zeros((1, 1, 5), dtype=np.float32)
+    # ice_aux_scaled = ice_scaler_out.transform(ice_aux)
+    ice_aux = np.array([[0.0, 0.0, 0.0, 0.0, 0.0]], dtype=np.float32)
+    ice_aux_scaled = ice_scaler_out.transform(ice_aux)[0].reshape(1, 1, 5)
 
     # PG Aux:
     # Legacy: pg_aux = np.zeros((1, 1, 2), dtype=np.float32)
@@ -165,7 +168,10 @@ def main():
         else np.arange(n_steps) * 0.5
     )  # Default 0.5s step
 
-    pg_aux_scaled = np.zeros((1, 1, 2), dtype=np.float32)
+    # pg_aux = np.zeros((1, 1, 2), dtype=np.float32)
+    # pg_aux_scaled = pg_scaler_out.transform(pg_aux)
+    pg_aux = np.array([[0.0, 0.7]], dtype=np.float32)
+    pg_aux_scaled = pg_scaler_out.transform(pg_aux)[0].reshape(1, 1, 2)
 
     print("Starting simulation loop...")
     start_time = time.time()

@@ -32,7 +32,110 @@ OUTPUT_DIR = os.path.join(BASE_DIR, "Output", "RL_Loop_Simulation_Old")
 # ICE: 4 inputs -> 5 outputs (Torque + 4 Emissions)
 ICE_INPUT_COLS = ["ICE_Speed_rpm", "fuel_mg", "T_amb_K", "p_amb_bar"]
 # PG: 4 inputs -> 2 outputs (Speed, SOC)
-# Correct Order: ICE_Speed, ICE_Torque(predicted), EM2, Brake
+# Correct Order: ICE_Speed, ICE_Torque(predicted), EM2,# Drivetrain: 0, 0.7
+PG_INITIAL_OUTPUTS = [0.0, 0.0]
+
+
+def scale_minmax(x, scale, min_):
+    """x_scaled = x * scale + min"""
+    return x * scale + min_
+
+
+def descale_minmax(x_scaled, scale, min_):
+    """x = (x_scaled - min) / scale"""
+    return (x_scaled - min_) / scale
+
+
+def predict_ice(
+    ice_model,
+    ice_in_scaler,
+    ice_out_scaler,
+    Speed_rpm,
+    m_fuel_mg,
+    T_amb_K,
+    p_amb_bar,
+    ice_aux,
+):
+    """
+    Predicts ICE outputs for one step using standard scaling logic.
+    Inputs are scalars or arrays of shape (1,).
+    ice_aux is the current state (1, 1, 5).
+    """
+    # 1. Construct Input Vector: [Speed, Fuel, T, P]
+    # Ensure inputs are 2D for scaler (1, n_features)
+    x = np.array([[Speed_rpm, m_fuel_mg, T_amb_K, p_amb_bar]], dtype=np.float32)
+
+    # 2. Scale Input
+    x_scaled = scale_minmax(x, ice_in_scaler.scale_, ice_in_scaler.min_)
+    x_scaled = x_scaled.reshape(1, 1, 4)  # (batch, time, features)
+
+    # 3. Model Inference
+    # Model expects [input_sequence, initial_state]
+    # Returns scaled output tensor (1, 1, 5)
+    y_scaled = ice_model([x_scaled, ice_aux])
+
+    # 4. Update Aux for next step (feedback loop)
+    # The model output becomes the aux input for the next step directly
+    ice_aux_new = y_scaled
+
+    # 5. Inverse Scale Output
+    # Scaler expects 2D array (n_samples, n_features)
+    y_flat = y_scaled.numpy().reshape(1, 5)
+    y = descale_minmax(y_flat, ice_out_scaler.scale_, ice_out_scaler.min_)
+
+    # Unpack outputs: Torque, NO, NO2, CO, CO2
+    Torque_Nm = y[0, 0]
+    NO_out = y[0, 1]
+    NO2_out = y[0, 2]
+    CO_out = y[0, 3]
+    CO2_out = y[0, 4]
+
+    return Torque_Nm, NO_out, NO2_out, CO_out, CO2_out, ice_aux_new
+
+
+def predict_pg(
+    pg_model,
+    pg_in_scaler,
+    pg_out_scaler,
+    ICE_Speed_soll_rpm,
+    EM2_Torque_Nm,
+    ICE_Torque_Nm,
+    Brake_perc,
+    pg_aux,
+):
+    """
+    Predicts PG outputs for one step using standard scaling logic.
+    Inputs are scalars or arrays of shape (1,).
+    pg_aux is the current state (1, 1, 2).
+    """
+    # 1. Construct Input Vector: [Speed, EM2, ICE_Torque, Brake]
+    # ORDER MATTERS: Based on transition_function_model.py
+    x = np.array(
+        [[ICE_Speed_soll_rpm, EM2_Torque_Nm, ICE_Torque_Nm, Brake_perc]],
+        dtype=np.float32,
+    )
+
+    # 2. Scale Input
+    x_scaled = scale_minmax(x, pg_in_scaler.scale_, pg_in_scaler.min_)
+    x_scaled = x_scaled.reshape(1, 1, 4)
+
+    # 3. Model Inference
+    y_scaled = pg_model([x_scaled, pg_aux])
+
+    # 4. Update Aux
+    pg_aux_new = y_scaled
+
+    # 5. Inverse Scale Output
+    y_flat = y_scaled.numpy().reshape(1, 2)
+    y = descale_minmax(y_flat, pg_out_scaler.scale_, pg_out_scaler.min_)
+
+    # Unpack: Speed, SOC
+    Car_Speed_kmph = y[0, 0]
+    SOC_1 = y[0, 1]
+
+    return Car_Speed_kmph, SOC_1, pg_aux_new
+
+
 PG_CSV_INPUTS = ["ICE_Speed_rpm", "EM2_Torque_Nm", "Brake_perc"]
 
 
@@ -142,7 +245,13 @@ def main():
     # ICE Output: 5 features
     # PG Output: 2 features
 
-    ice_aux = np.zeros((1, 1, 5), dtype=np.float32)
+    # ice_aux = np.zeros((1, 1, 5), dtype=np.float32)
+    # 1. ICE Aux: 5 features (Torque, Emissions...)
+    # Create array of physical zeros
+    ice_aux_initial = np.zeros((1, 5), dtype=np.float32)
+    # Transform and reshape
+    ice_aux = ice_out_scaler.transform(ice_aux_initial).reshape(1, 1, 5)
+
     # However, if aux represents the previous output, it should PROBABLY be scaled.
     # Zero scaled corresponds to min value in standard scaling or 0 in standard?
     # Usually in these recursive RNNs, we feed back the SCALED prediction.
@@ -150,7 +259,13 @@ def main():
     # Given we don't have initial values, standard procedure is Zeros.
 
     # PG Aux: 2 features
-    pg_aux = np.zeros((1, 1, 2), dtype=np.float32)
+    # pg_aux = np.zeros((1, 1, 2), dtype=np.float32)
+    # 2. PG Aux: 2 features (Speed, SOC)
+    # Create array of physical zeros (or specific initial SOC if needed, but 0 seems standard for aux placeholder)
+    # pg_aux_initial = np.zeros((1, 2), dtype=np.float32)
+    pg_aux_initial = np.array([[0.0, 0.7]], dtype=np.float32)
+    # Transform and reshape
+    pg_aux = pg_out_scaler.transform(pg_aux_initial).reshape(1, 1, 2)
 
     # 4. Simulation Loop
     num_steps = len(df)
@@ -175,43 +290,49 @@ def main():
     start_time = time.time()
 
     for t in range(num_steps):
-        # --- ICE ---
-        # Input features
-        ice_in_vals = df.loc[t, ICE_INPUT_COLS].values.reshape(1, -1)
-        ice_in_scaled = ice_in_scaler.transform(ice_in_vals).reshape(1, 1, -1)
-
-        # Predict
-        # Note: training=False is crucial for LayerNormLSTMCell sometimes
-        ice_pred_scaled = ice_model([ice_in_scaled, ice_aux], training=False)
-
-        # Update Aux for next step (feedback loop)
-        ice_aux = ice_pred_scaled
-
-        # Inverse transform for logging/downstream use
-        ice_pred = ice_out_scaler.inverse_transform(ice_pred_scaled.numpy()[0])
-        ice_torque_pred = ice_pred[0][0]  # Assuming Torque is first index
-
-        # --- PG ---
+        # --- ICE Prediction ---
+        # Get inputs for current step
         ice_speed = df.loc[t, "ICE_Speed_rpm"]
+        fuel_mg = df.loc[t, "fuel_mg"]
+        T_amb = df.loc[t, "T_amb_K"]
+        p_amb = df.loc[t, "p_amb_bar"]
+
+        # Predict ICE
+        ice_torque_pred, _, _, _, _, ice_aux_new = predict_ice(
+            ice_model,
+            ice_in_scaler,
+            ice_out_scaler,
+            ice_speed,
+            fuel_mg,
+            T_amb,
+            p_amb,
+            ice_aux,
+        )
+
+        # Update ICE State for next step
+        ice_aux = ice_aux_new
+
+        # --- PG Prediction ---
+        # Get PG inputs
         em2_torque = df.loc[t, "EM2_Torque_Nm"]
         brake_perc = df.loc[t, "Brake_perc"]
 
-        # Construct Input: Speed, ICE_Torque_Pred, EM2, Brake
-        pg_in_vals = np.array([[ice_speed, ice_torque_pred, em2_torque, brake_perc]])
-        pg_in_scaled = pg_in_scaler.transform(pg_in_vals).reshape(1, 1, -1)
+        # Predict PG
+        car_speed_pred, soc_pred, pg_aux_new = predict_pg(
+            pg_model,
+            pg_in_scaler,
+            pg_out_scaler,
+            ice_speed,  # ICE_Speed_soll_rpm (assuming actual speed is used as target/state)
+            em2_torque,
+            ice_torque_pred,
+            brake_perc,
+            pg_aux,
+        )
 
-        # Predict
-        pg_pred_scaled = pg_model([pg_in_scaled, pg_aux], training=False)
+        # Update PG State for next step
+        pg_aux = pg_aux_new
 
-        # Update Aux
-        pg_aux = pg_pred_scaled
-
-        # Unscale
-        pg_pred = pg_out_scaler.inverse_transform(pg_pred_scaled.numpy()[0])
-        car_speed_pred = pg_pred[0][0]
-        soc_pred = pg_pred[0][1]
-
-        # --- Log ---
+        # --- Logging ---
         results["time"].append(df.loc[t, "Time_s"] if "Time_s" in df.columns else t)
         results["ice_torque_pred"].append(ice_torque_pred)
         results["car_speed_pred"].append(car_speed_pred)
