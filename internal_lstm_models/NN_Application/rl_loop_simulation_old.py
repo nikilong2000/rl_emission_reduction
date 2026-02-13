@@ -414,6 +414,25 @@ def main():
 
     print(f"Plots saved to {OUTPUT_DIR}")
 
+    # --- Save Results to CSV ---
+    # Create DataFrame
+    results_df = pd.DataFrame(
+        {
+            "time": results["time"],
+            "ice_torque_pred": results["ice_torque_pred"],
+            "ice_torque_true": results["ice_torque_true"],
+            "car_speed_pred": results["car_speed_pred"],
+            "car_speed_true": results["car_speed_true"],
+            "soc_pred": results["soc_pred"],
+            "soc_true": results["soc_true"],
+        }
+    )
+
+    # Save DataFrame to CSV
+    csv_output_path = os.path.join(OUTPUT_DIR, "simulation_results_old.csv")
+    results_df.to_csv(csv_output_path, index=False)
+    print(f"Results saved to {csv_output_path}")
+
 
 if __name__ == "__main__":
     main()
