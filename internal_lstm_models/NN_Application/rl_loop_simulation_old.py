@@ -18,13 +18,25 @@ os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
 
 # Paths
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
 ICE_MODEL_DIR = os.path.join(
     BASE_DIR, "../../controller_for_ICE_PG/src/models_markus/ICE_Model_Update_01"
 )
+
+# ICE_MODEL_DIR = os.path.join(
+#     BASE_DIR, "../../controller_for_ICE_PG/SHARE/CTTC_models/ONNX/ICE/"
+# )
+
 PG_MODEL_DIR = os.path.join(
     BASE_DIR,
-    "../../controller_for_ICE_PG/src/models_markus/PG_Model_M1.1_without_EM1_Torque",
+    "../../controller_for_ICE_PG/src/models_markus/PG_v2/",
 )
+
+# PG_MODEL_DIR = os.path.join(
+#     BASE_DIR,
+#     "../../controller_for_ICE_PG/SHARE/CTTC_models/ONNX/PG/",
+# )
+
 INPUT_DATA_PATH = os.path.join(BASE_DIR, "Input_data", "WLTC.csv")
 OUTPUT_DIR = os.path.join(BASE_DIR, "Output", "RL_Loop_Simulation_Old")
 

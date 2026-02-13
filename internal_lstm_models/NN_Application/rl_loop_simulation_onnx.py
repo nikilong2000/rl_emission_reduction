@@ -233,7 +233,10 @@ def main():
         # Update feedback
         pg_aux_scaled = pg_pred_scaled
 
-    print(f"\nSimulation complete in {time.time() - start_time:.2f} seconds")
+    total_time = time.time() - start_time
+    print(
+        f"\nSimulation complete in {total_time:.2f} seconds ({total_time/n_steps*1000:.2f} ms/step)"
+    )
 
     # --- Plotting ---
     print("Generating plots...")
