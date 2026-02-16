@@ -8,9 +8,7 @@ import time
 # --- Configuration ---
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-OUTPUT_DIR = os.path.join(
-    BASE_DIR, "../internal_lstm_models/NN_Application/Output/RL_Loop_Simulation_ONNX"
-)
+OUTPUT_DIR = os.path.join(BASE_DIR, "output/RL_Loop_Simulation_ONNX")
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 # Path to the shared folder containing models

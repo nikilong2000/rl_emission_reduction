@@ -14,6 +14,10 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 if current_dir not in sys.path:
     sys.path.append(current_dir)
 
+sys.path.append(
+    os.path.join(current_dir, "..", "internal_lstm_models", "NN_Application")
+)
+
 # Import helper functions from Modular_NN
 from Modular_NN import load_network, set_states, load_scaler
 
@@ -34,9 +38,7 @@ PG_MODEL_DIR = os.path.join(
 INPUT_DATA_PATH = os.path.join(
     current_dir, "../internal_lstm_models/NN_Application/Input_data/WLTC.csv"
 )
-OUTPUT_DIR = os.path.join(
-    current_dir, "../internal_lstm_models/NN_Application/Output/RL_Loop_Simulation"
-)
+OUTPUT_DIR = os.path.join(current_dir, "output/RL_Loop_Simulation")
 
 # Input columns definition (ORDER MATTERS!)
 ICE_INPUTS = ["ICE_Speed_rpm", "fuel_mg", "T_amb_K", "p_amb_bar"]

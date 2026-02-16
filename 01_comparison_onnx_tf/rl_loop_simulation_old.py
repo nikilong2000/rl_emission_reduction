@@ -40,9 +40,7 @@ PG_MODEL_DIR = os.path.join(
 INPUT_DATA_PATH = os.path.join(
     BASE_DIR, "../internal_lstm_models/NN_Application/Input_data/WLTC.csv"
 )
-OUTPUT_DIR = os.path.join(
-    BASE_DIR, "../internal_lstm_models/NN_Application/Output/RL_Loop_Simulation_Old"
-)
+OUTPUT_DIR = os.path.join(BASE_DIR, "output/RL_Loop_Simulation_Old")
 
 # Feature Definitions
 # ICE: 4 inputs -> 5 outputs (Torque + 4 Emissions)
