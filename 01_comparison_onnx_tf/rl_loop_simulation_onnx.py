@@ -6,11 +6,17 @@ import matplotlib.pyplot as plt
 import time
 
 # --- Configuration ---
-OUTPUT_DIR = "internal_lstm_models/NN_Application/Output/RL_Loop_Simulation_ONNX"
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+OUTPUT_DIR = os.path.join(
+    BASE_DIR, "../internal_lstm_models/NN_Application/Output/RL_Loop_Simulation_ONNX"
+)
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 # Path to the shared folder containing models
-BASE_MODEL_DIR = "controller_for_ICE_PG/SHARE/CTTC_models/ONNX"
+BASE_MODEL_DIR = os.path.join(
+    BASE_DIR, "../controller_for_ICE_PG/SHARE/CTTC_models/ONNX"
+)
 
 # Import ONNX_Predict classes
 # Since ONNX_Predict is installed in the venv, we can import it directly.
@@ -27,7 +33,9 @@ SIMULATE_LEGACY_STATELESS = False
 def main():
     print("Loading data...")
     # Load WLTC data
-    csv_path = "internal_lstm_models/NN_Application/Input_data/WLTC.csv"
+    csv_path = os.path.join(
+        BASE_DIR, "../internal_lstm_models/NN_Application/Input_data/WLTC.csv"
+    )
     if not os.path.exists(csv_path):
         print(f"Error: {csv_path} not found.")
         return

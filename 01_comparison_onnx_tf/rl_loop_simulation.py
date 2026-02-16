@@ -25,10 +25,18 @@ warnings.filterwarnings(
 )
 
 # Configuration
-ICE_MODEL_DIR = os.path.join(current_dir, "Nets", "ICE")
-PG_MODEL_DIR = os.path.join(current_dir, "Nets", "Drivetrain")
-INPUT_DATA_PATH = os.path.join(current_dir, "Input_data", "WLTC.csv")
-OUTPUT_DIR = os.path.join(current_dir, "Output", "RL_Loop_Simulation")
+ICE_MODEL_DIR = os.path.join(
+    current_dir, "../internal_lstm_models/NN_Application/Nets/ICE"
+)
+PG_MODEL_DIR = os.path.join(
+    current_dir, "../internal_lstm_models/NN_Application/Nets/Drivetrain"
+)
+INPUT_DATA_PATH = os.path.join(
+    current_dir, "../internal_lstm_models/NN_Application/Input_data/WLTC.csv"
+)
+OUTPUT_DIR = os.path.join(
+    current_dir, "../internal_lstm_models/NN_Application/Output/RL_Loop_Simulation"
+)
 
 # Input columns definition (ORDER MATTERS!)
 ICE_INPUTS = ["ICE_Speed_rpm", "fuel_mg", "T_amb_K", "p_amb_bar"]

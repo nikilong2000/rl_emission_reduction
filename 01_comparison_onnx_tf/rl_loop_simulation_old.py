@@ -20,7 +20,7 @@ os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 ICE_MODEL_DIR = os.path.join(
-    BASE_DIR, "../../controller_for_ICE_PG/src/models_markus/ICE_Model_Update_01"
+    BASE_DIR, "../controller_for_ICE_PG/src/models_markus/ICE_Model_Update_01"
 )
 
 # ICE_MODEL_DIR = os.path.join(
@@ -29,7 +29,7 @@ ICE_MODEL_DIR = os.path.join(
 
 PG_MODEL_DIR = os.path.join(
     BASE_DIR,
-    "../../controller_for_ICE_PG/src/models_markus/PG_v2/",
+    "../controller_for_ICE_PG/src/models_markus/PG_v2/",
 )
 
 # PG_MODEL_DIR = os.path.join(
@@ -37,8 +37,12 @@ PG_MODEL_DIR = os.path.join(
 #     "../../controller_for_ICE_PG/SHARE/CTTC_models/ONNX/PG/",
 # )
 
-INPUT_DATA_PATH = os.path.join(BASE_DIR, "Input_data", "WLTC.csv")
-OUTPUT_DIR = os.path.join(BASE_DIR, "Output", "RL_Loop_Simulation_Old")
+INPUT_DATA_PATH = os.path.join(
+    BASE_DIR, "../internal_lstm_models/NN_Application/Input_data/WLTC.csv"
+)
+OUTPUT_DIR = os.path.join(
+    BASE_DIR, "../internal_lstm_models/NN_Application/Output/RL_Loop_Simulation_Old"
+)
 
 # Feature Definitions
 # ICE: 4 inputs -> 5 outputs (Torque + 4 Emissions)
