@@ -1,5 +1,4 @@
 import tensorflow as tf
-import tensorflow_addons as tfa  # Used for LayerNormLSTMCell
 from tensorflow.keras import layers
 
 
@@ -37,14 +36,9 @@ class ScaledController(tf.keras.Model):
         self.alpha = alpha
 
         # 4) layers
-        ln_cell = tfa.rnn.LayerNormLSTMCell(units)  # <-- ADDED
-        self.lstm = tf.keras.layers.RNN(  # <-- REPLACED
-            ln_cell,
-            stateful=True,
-            return_sequences=False,
-        )
-        # Explicitly build the layer to fix the batch size for stateful=True
-        self.lstm.build(input_shape=(1, None, 5))
+        # Use standard LSTM for TF 2.18 compatibility
+        self.lstm = layers.LSTM(units, stateful=True, return_sequences=False)
+
 
         self.dense = layers.Dense(units // 2, activation="tanh")
         self.delta = layers.Dense(3, activation="linear", name="deltas")

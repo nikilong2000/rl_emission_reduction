@@ -86,7 +86,10 @@ class transition_function_model:
         
         # 2. Scale
         x_scaled = self.ICEscaler_in.transform(x)
-        x_scaled = x_scaled.reshape(1, 1, 4)
+        # Verify if x_scaled is array, if not convert. 
+        # Scaler_onnx might return a list or different type depending on implementation.
+        x_scaled = np.array(x_scaled) 
+        x_scaled = np.reshape(x_scaled, (1, 1, 4))
         
         # 3. Predict
         # Input: [x_scaled, y_scaled_ini]

@@ -224,3 +224,4 @@ ENV/
 # *.whl
 
 *.venv*
+*.whl
