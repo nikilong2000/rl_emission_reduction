@@ -30,7 +30,7 @@ GAE_LAMBDA = 0.95
 CLIP_RANGE = 0.2
 
 # Training Configuration
-TOTAL_TIMESTEPS = 400000
+TOTAL_TIMESTEPS = 800000
 
 # Reward Weights
 W_SPEED = 1.0

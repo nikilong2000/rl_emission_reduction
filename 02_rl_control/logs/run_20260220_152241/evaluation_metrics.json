@@ -7,18 +7,18 @@
         "gamma": 0.99,
         "gae_lambda": 0.95,
         "clip_range": 0.2,
-        "total_timesteps": 400000,
+        "total_timesteps": 800000,
         "w_speed": 1.0,
         "w_emission": 0.85,
         "w_fuel": 0.75
     },
-    "total_reward": -17653.28086751662,
+    "total_reward": -17178.646844411734,
     "total_fuel_g": 10.8,
-    "total_nox_g": 1.670408010482788,
-    "total_co_g": 48.038997650146484,
-    "mae_speed_kmph": 2.911811590194702,
-    "rmse_speed_kmph": 6.482343673706055,
+    "total_nox_g": 1.8520931005477905,
+    "total_co_g": 50.40614318847656,
+    "mae_speed_kmph": 2.7182161808013916,
+    "rmse_speed_kmph": 6.264571189880371,
     "initial_soc": 0.699999988079071,
-    "final_soc": 0.3811744749546051,
-    "delta_soc": -0.31882551312446594
+    "final_soc": 0.38557037711143494,
+    "delta_soc": -0.3144296109676361
 }
