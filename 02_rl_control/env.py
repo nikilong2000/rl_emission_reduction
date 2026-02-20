@@ -184,7 +184,7 @@ class EmissionControlEnv(gym.Env):
         p_amb = (
             self.df.loc[self.current_step, "p_amb_bar"]
             if "p_amb_bar" in self.df.columns
-            else 1.013
+            else 1.005
         )
 
         ice_inputs = np.array([[ice_speed_rpm, fuel_mg, t_amb, p_amb]])
@@ -225,11 +225,14 @@ class EmissionControlEnv(gym.Env):
         speed_error = abs(target_speed - car_speed)
 
         # Penalties
-        # Normalize terms roughly to be in same order of magnitude
+        # TODO: Normalise terms roughly to be in same order of magnitude
         reward = 0.0
         reward -= config.W_SPEED * speed_error
         reward -= config.W_EMISSION * (nox_tp + co_tp)  # Simple sum for now
-        # reward -= config.W_FUEL * fuel_mg  # Usage penalty # TODO check to add in later
+        reward -= config.W_FUEL * fuel_mg  # Usage penalty
+        reward -= config.W_BRAKE * brake_perc
+
+
 
         # Optional: SOC penalty if it goes out of bounds (0.2 - 0.9)
         # TODO check to add in later
@@ -266,6 +269,9 @@ class EmissionControlEnv(gym.Env):
             "nox": nox_tp,
             "fuel": fuel_mg,
             "ice_torque": ice_torque,
+            "ice_speed_rpm": ice_speed_rpm,
+            "em2_torque_nm": em2_torque_nm,
+            "brake_perc": brake_perc,
         }
 
         return obs, reward, terminated, truncated, info

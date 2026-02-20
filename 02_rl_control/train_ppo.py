@@ -24,118 +24,12 @@ sys.path.append(os.path.dirname(current_dir))
 
 try:
     from .env import EmissionControlEnv
+    from .plotting import TrainingLivePlotCallback, plot_evaluation, plot_actions
     from . import config
 except ImportError:
     from env import EmissionControlEnv
+    from plotting import TrainingLivePlotCallback, plot_evaluation, plot_actions
     import config
-
-
-class TrainingLivePlotCallback(BaseCallback):
-    """
-    Callback for plotting training progress (Reward) in real-time (saved to file).
-    """
-
-    def __init__(self, check_freq: int, log_dir: str, verbose=1):
-        super(TrainingLivePlotCallback, self).__init__(verbose)
-        self.check_freq = check_freq
-        self.log_dir = log_dir
-        self.rewards = []
-        self.timesteps = []
-
-    def _on_step(self) -> bool:
-        if self.n_calls % self.check_freq == 0:
-            # Retrieve mean reward from the monitor file or accumulated rewards
-            # SB3 Monitor wrapper writes to a csv file. We can read that or just track episode rewards if we want.
-            # But SB3 callbacks don't easily give "current episode reward".
-            # Easiest is to read the monitor.csv if it exists.
-            try:
-                monitor_path = os.path.join(self.log_dir, "monitor.csv")
-                if os.path.exists(monitor_path):
-                    # Skip first 2 lines (metadata)
-                    df = pd.read_csv(monitor_path, skiprows=1)
-                    if len(df) > 0:
-                        # Use a moving average for smoother plotting
-                        rewards = df["r"].values
-                        if len(rewards) > 0:
-                            mean_reward = np.mean(rewards[-100:])  # Last 100 episodes
-                            self.rewards.append(mean_reward)
-                            self.timesteps.append(self.num_timesteps)
-
-                            self._plot()
-            except Exception as e:
-                pass  # Ignore errors during plotting
-
-        return True
-
-    def _plot(self):
-        plt.figure(figsize=(10, 5))
-        plt.plot(self.timesteps, self.rewards, label="Mean Reward (Last 100 Eps)")
-        plt.xlabel("Timesteps")
-        plt.ylabel("Reward")
-        plt.title("Training Progress")
-        plt.legend()
-        plt.grid(True)
-        plt.savefig(os.path.join(self.log_dir, "training_progress.png"))
-        plt.close()
-
-
-def plot_evaluation(results, log_dir):
-    """
-    Plot evaluation results: Speed, SOC, Emissions.
-    """
-    time_steps = np.arange(len(results["speed_actual"]))
-
-    fig, axes = plt.subplots(3, 1, figsize=(12, 12), sharex=True)
-
-    # 1. Speed
-    axes[0].plot(
-        time_steps,
-        results["speed_target"],
-        label="Target Speed",
-        color="black",
-        alpha=0.9,
-        linestyle="--",
-    )
-    axes[0].plot(
-        time_steps,
-        results["speed_actual"],
-        label="Actual Speed",
-        color="blue",
-        alpha=0.7,
-    )
-    axes[0].set_ylabel("Speed (km/h)")
-    axes[0].set_title("Speed Tracking")
-    axes[0].legend()
-    axes[0].grid(True)
-
-    # 2. SOC
-    axes[1].plot(time_steps, results["soc"], label="SOC", color="green")
-    axes[1].set_ylabel("SOC")
-    axes[1].set_ylim(0, 1)
-    axes[1].set_title("State of Charge")
-    axes[1].axhline(y=0.2, color="r", linestyle=":", alpha=0.5)
-    axes[1].axhline(y=0.9, color="r", linestyle=":", alpha=0.5)
-    axes[1].grid(True)
-
-    # 3. Emissions
-    axes[2].plot(
-        time_steps, results["nox"], label="NOx (Tailpipe)", color="orange", alpha=0.8
-    )
-    axes[2].plot(
-        time_steps, results["co"], label="CO (Tailpipe)", color="red", alpha=0.8
-    )
-    axes[2].set_ylabel("Emissions (g/s)")
-    axes[2].set_xlabel("Time Step")
-    axes[2].set_title("Emissions")
-    axes[2].legend()
-    axes[2].grid(True)
-
-    plt.tight_layout()
-    plt.savefig(os.path.join(log_dir, "evaluation_results.png"))
-    plt.close()
-    print(
-        f"Evaluation plots saved to {os.path.join(log_dir, 'evaluation_results.png')}"
-    )
 
 
 def main():
@@ -151,18 +45,33 @@ def main():
     env = EmissionControlEnv()
     env = Monitor(env, os.path.join(log_dir, "monitor.csv"))
 
+    # Hyperparameters; keep for file writing
+    train_config = {
+        "learning_rate": config.LEARNING_RATE,
+        "n_steps": config.N_STEPS,
+        "batch_size": config.BATCH_SIZE,
+        "n_epochs": config.N_EPOCHS,
+        "gamma": config.GAMMA,
+        "gae_lambda": config.GAE_LAMBDA,
+        "clip_range": config.CLIP_RANGE,
+        "total_timesteps": config.TOTAL_TIMESTEPS,
+        "w_speed": config.W_SPEED,
+        "w_emission": config.W_EMISSION,
+        "w_fuel": config.W_FUEL,
+    }
+
     # Instantiate the agent
     model = PPO(
         "MlpPolicy",
         env,
         verbose=1,
-        learning_rate=3e-4,
-        n_steps=2048,
-        batch_size=64,
-        n_epochs=10,
-        gamma=0.99,
-        gae_lambda=0.95,
-        clip_range=0.2,
+        learning_rate=train_config["learning_rate"],
+        n_steps=train_config["n_steps"],
+        batch_size=train_config["batch_size"],
+        n_epochs=train_config["n_epochs"],
+        gamma=train_config["gamma"],
+        gae_lambda=train_config["gae_lambda"],
+        clip_range=train_config["clip_range"],
         tensorboard_log=log_dir,
     )
 
@@ -178,10 +87,9 @@ def main():
 
     # Train the agent
     print("Starting Training...")
-    TIMESTEPS = 300000  # Increased slightly for better plotting demo
-
     model.learn(
-        total_timesteps=TIMESTEPS, callback=[checkpoint_callback, plot_callback]
+        total_timesteps=train_config["total_timesteps"],
+        callback=[checkpoint_callback, plot_callback],
     )
 
     print("Training finished.")
@@ -209,6 +117,9 @@ def main():
         "nox": [],
         "co": [],
         "fuel": [],
+        "ice_speed_rpm": [],
+        "em2_torque_nm": [],
+        "brake_perc": [],
     }
 
     # Store initial state
@@ -220,6 +131,10 @@ def main():
     eval_results["nox"].append(obs[4])
     eval_results["co"].append(obs[5])
     eval_results["fuel"].append(0.0)  # No fuel consumed at step 0
+    # Initial actions are zero or undefined, appending 0 for consistency
+    eval_results["ice_speed_rpm"].append(0.0)
+    eval_results["em2_torque_nm"].append(0.0)
+    eval_results["brake_perc"].append(0.0)
 
     while not (terminated or truncated):
         action, _states = model.predict(
@@ -237,6 +152,11 @@ def main():
         eval_results["co"].append(obs[5])
         eval_results["fuel"].append(info.get("fuel", 0.0))
 
+        # Collect actions
+        eval_results["ice_speed_rpm"].append(info.get("ice_speed_rpm", 0.0))
+        eval_results["em2_torque_nm"].append(info.get("em2_torque_nm", 0.0))
+        eval_results["brake_perc"].append(info.get("brake_perc", 0.0))
+
     print(f"Evaluation finished. Total Reward: {total_reward}")
 
     # --- Calculate Metrics ---
@@ -249,9 +169,11 @@ def main():
     soc = np.array(eval_results["soc"])
 
     # 1. Total Cumulative Values
+    dt = 0.5  # 1 step = 0.5s
+    # fuel is already per step, so no conversion needed for dt
     total_fuel_g = np.sum(fuel_mg) / 1000.0  # Convert mg to g
-    total_nox_g = np.sum(nox_gs)  # Assuming 1Hz (step time = 1s), g/s * 1s = g
-    total_co_g = np.sum(co_gs)  # Assuming 1Hz
+    total_nox_g = np.sum(nox_gs) * dt  # dt = 0.5s, g/s * 0.5s = g
+    total_co_g = np.sum(co_gs) * dt  # dt = 0.5s
 
     # 2. Speed Tracking Metrics
     # Exclude the first few steps if needed, but here we take all
@@ -265,6 +187,7 @@ def main():
     delta_soc = final_soc - initial_soc
 
     metrics = {
+        "configuration": train_config,
         "total_reward": float(total_reward),
         "total_fuel_g": float(total_fuel_g),
         "total_nox_g": float(total_nox_g),
@@ -290,8 +213,67 @@ def main():
     df_res.to_csv(csv_path, index=False)
     print(f"Evaluation data saved to {csv_path}")
 
+    # Calculate and save emissions per km
+    calculate_emissions_per_km(eval_results, log_dir)
+
     # Generate Plots
     plot_evaluation(eval_results, log_dir)
+    plot_actions(eval_results, log_dir, window_start=300, window_size=30)
+
+
+def calculate_emissions_per_km(results, log_dir):
+    speed_actual = np.array(results["speed_actual"])
+    nox_gs = np.array(results["nox"])
+    co_gs = np.array(results["co"])
+
+    dt = 0.5  # 1 step = 0.5 seconds
+
+    distance_km = 0.0
+    accumulated_nox_mg = 0.0
+    accumulated_co_mg = 0.0
+
+    km_counter = 1
+
+    out_path = os.path.join(log_dir, "emissions_per_km.txt")
+    with open(out_path, "w") as f:
+        f.write(
+            "Kilometer, NOx (mg/km), CO (mg/km), NOx_Pass (<=80 mg/km), CO_Pass (<=500 mg/km)\n"
+        )
+
+        for v, nox, co in zip(speed_actual, nox_gs, co_gs):
+            dist_step = v * dt / 3600.0
+
+            # Emissions in mg for this step = rate (g/s) * dt (s) * 1000 (mg/g)
+            nox_step_mg = nox * dt * 1000.0
+            co_step_mg = co * dt * 1000.0
+
+            distance_km += dist_step
+            accumulated_nox_mg += nox_step_mg
+            accumulated_co_mg += co_step_mg
+
+            if distance_km >= 1.0:
+                nox_pass = accumulated_nox_mg <= 80.0
+                co_pass = accumulated_co_mg <= 500.0
+
+                f.write(
+                    f"{km_counter}, {accumulated_nox_mg:.2f}, {accumulated_co_mg:.2f}, {nox_pass}, {co_pass}\n"
+                )
+
+                # Reset accumulators
+                distance_km = 0.0
+                accumulated_nox_mg = 0.0
+                accumulated_co_mg = 0.0
+                km_counter += 1
+
+        # Handle the remaining partial kilometer
+        if distance_km > 0.1:  # Only report if at least 100m driven
+            nox_per_km = accumulated_nox_mg / distance_km
+            co_per_km = accumulated_co_mg / distance_km
+            nox_pass = nox_per_km <= 80.0
+            co_pass = co_per_km <= 500.0
+            f.write(
+                f"Partial ({distance_km:.2f} km), {nox_per_km:.2f}, {co_per_km:.2f}, {nox_pass}, {co_pass}\n"
+            )
 
 
 if __name__ == "__main__":
