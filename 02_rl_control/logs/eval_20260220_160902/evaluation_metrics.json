@@ -1,0 +1,12 @@
+{
+    "model_path": "logs/run_20260220_152241/ppo_emission_final.zip",
+    "total_reward": -17178.646844411734,
+    "total_fuel_g": 10.8,
+    "total_nox_g": 1.8520931005477905,
+    "total_co_g": 50.40614318847656,
+    "mae_speed_kmph": 2.7182161808013916,
+    "rmse_speed_kmph": 6.264571189880371,
+    "initial_soc": 0.699999988079071,
+    "final_soc": 0.38557037711143494,
+    "delta_soc": -0.3144296109676361
+}

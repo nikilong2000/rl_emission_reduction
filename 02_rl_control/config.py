@@ -1,6 +1,6 @@
 import os
 
-## DIRECTORIES
+## DIRECTORIES START
 # Base Directories
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.abspath(os.path.join(CURRENT_DIR, ".."))
@@ -18,8 +18,10 @@ INPUT_DATA_PATH = os.path.join(
     PROJECT_ROOT, "internal_lstm_models/NN_Application/Input_data/WLTC.csv"
 )
 
+## DIRECTORIES END
+############################
 
-## TRAINING
+## TRAINING START
 # PPO Hyperparameters
 LEARNING_RATE = 0.0003
 N_STEPS = 2048
@@ -30,18 +32,19 @@ GAE_LAMBDA = 0.95
 CLIP_RANGE = 0.2
 
 # Training Configuration
-TOTAL_TIMESTEPS = 800000
+TOTAL_TIMESTEPS = 400000
 
 # Reward Weights
 W_SPEED = 1.0
-W_EMISSION = 0.85
-W_FUEL = 0.75
-W_BRAKE = 0.25
+W_EMISSION = 0.80
+W_FUEL = 0.60
+W_BRAKE = 0.45
+W_SOC = 0.30
 
-
+## TRAINING END
 ############################
 
-# TODO: Not used for now
+## TODO: Not used for now
 # # RL Environment Config
 # STATE_DIM = 6  # Car_Speed, Target_Speed, SOC, ICE_Torque, NOx, CO
 # ACTION_DIM = 4  # ICE_Speed, EM2_Torque, Fuel_Mass, Brake

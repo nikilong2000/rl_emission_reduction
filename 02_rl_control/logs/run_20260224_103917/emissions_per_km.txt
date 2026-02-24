@@ -1,0 +1,23 @@
+Kilometer, NOx (mg/km), CO (mg/km), NOx_Pass (<=80 mg/km), CO_Pass (<=500 mg/km)
+1, -3.57, 1.64, True, True
+2, -1.23, 0.92, True, True
+3, -1.41, 2.44, True, True
+4, -0.37, 1.80, True, True
+5, -0.14, 1.33, True, True
+6, -0.06, 0.93, True, True
+7, -0.04, 0.73, True, True
+8, -0.09, 1.66, True, True
+9, -0.06, 0.98, True, True
+10, -0.08, 1.04, True, True
+11, -0.05, 0.54, True, True
+12, -0.05, 0.52, True, True
+13, -0.07, 0.62, True, True
+14, -0.08, 0.68, True, True
+15, -0.29, 1.91, True, True
+16, -0.14, 0.78, True, True
+17, -0.11, 0.59, True, True
+18, -0.11, 0.53, True, True
+19, -0.11, 0.52, True, True
+20, -0.11, 0.52, True, True
+21, -0.12, 0.51, True, True
+22, -0.18, 0.73, True, True

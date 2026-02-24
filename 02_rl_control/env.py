@@ -65,14 +65,14 @@ class EmissionControlEnv(gym.Env):
         # User defined these as continuous actions.
         # We normalize actions to [-1, 1] for PPO and rescale inside step.
         self.action_space = spaces.Box(
-            low=-1.0, high=1.0, shape=(4,), dtype=np.float32
-        )  # TODO not used for now
+            low=-1.0, high=1.0, shape=(5,), dtype=np.float32
+        )  # [Engine_State, ICE_Speed, EM2_Torque, Fuel_Mass, Brake]
 
         # Action scaling (Min/Max values for rescaling)
         self.action_min = np.array(
-            [900.0, -421.0, 3.0, 0.0], dtype=np.float32
-        )  # RPM, Torque, Fuel, Brake
-        self.action_max = np.array([4000.0, 421.0, 70.0, 1.0], dtype=np.float32)
+            [-1.0, 900.0, -421.0, 3.0, 0.0], dtype=np.float32
+        )  # EngineOn Threshold, RPM, Torque, Fuel, Brake
+        self.action_max = np.array([1.0, 4000.0, 421.0, 70.0, 100.0], dtype=np.float32)
 
         # Define Observation Space
         # [Car_Speed (km/h), Target_Speed (km/h), SOC (0-1), ICE_Torque (Nm), NOx (g/s), CO (g/s)]
@@ -86,6 +86,7 @@ class EmissionControlEnv(gym.Env):
         self.last_ice_torque = 0.0
         self.last_car_speed = 0.0
         self.last_soc = 0.7
+        self.initial_soc = self.last_soc
         self.last_nox = 0.0
         self.last_co = 0.0
 
@@ -143,6 +144,7 @@ class EmissionControlEnv(gym.Env):
         self.last_ice_torque = 0.0
         self.last_car_speed = 0.0
         self.last_soc = 0.7
+        self.initial_soc = self.last_soc
         self.last_nox = 0.0
         self.last_co = 0.0
 
@@ -169,10 +171,18 @@ class EmissionControlEnv(gym.Env):
             self.action_max - self.action_min
         )
 
-        ice_speed_rpm = scaled_action[0]
-        em2_torque_nm = scaled_action[1]
-        fuel_mg = scaled_action[2]
-        brake_perc = scaled_action[3]
+        engine_state_req = scaled_action[0]
+        ice_speed_rpm = scaled_action[1]
+        em2_torque_nm = scaled_action[2]
+        fuel_mg = scaled_action[3]
+        brake_perc = scaled_action[4]
+
+        # Enforce Engine Off bounds
+        # If engine_state_req < 0, ICE is commanded OFF
+        engine_on = engine_state_req >= 0.0
+        if not engine_on:
+            ice_speed_rpm = 0.0
+            fuel_mg = 0.0
 
         # 2. Prepare Inputs for ICE Model
         # Inputs: "ICE_Speed_rpm", "fuel_mg", "T_amb_K", "p_amb_bar"
@@ -224,20 +234,22 @@ class EmissionControlEnv(gym.Env):
 
         speed_error = abs(target_speed - car_speed)
 
-        # Penalties
-        # TODO: Normalise terms roughly to be in same order of magnitude
+        # Normalization factors to bring terms roughly into [0, 1] range
+        norm_speed = 50.0  # Max expected practical speed error (km/h)
+        norm_emission = 0.1  # Typical high combined tailpipe emissions (g/s)
+        norm_fuel = 70.0  # Max fuel injection per step from config (mg)
+        norm_brake = 100.0  # Max brake percentage bounds (%)
+        norm_soc = 0.7  # Typical maximum allowed SOC drift scale
+
         reward = 0.0
-        reward -= config.W_SPEED * speed_error
-        reward -= config.W_EMISSION * (nox_tp + co_tp)  # Simple sum for now
-        reward -= config.W_FUEL * fuel_mg  # Usage penalty
-        reward -= config.W_BRAKE * brake_perc
+        reward -= config.W_SPEED * (speed_error / norm_speed)
+        reward -= config.W_EMISSION * ((nox_tp + co_tp) / norm_emission)
+        reward -= config.W_FUEL * (fuel_mg / norm_fuel)
+        reward -= config.W_BRAKE * (brake_perc / norm_brake)
+        reward -= config.W_SOC * (abs(soc - self.initial_soc) / norm_soc)
 
-
-
-        # Optional: SOC penalty if it goes out of bounds (0.2 - 0.9)
-        # TODO check to add in later
-        # if soc < 0.2 or soc > 0.9:
-        #     reward -= 10.0
+        if soc < 0.3 or soc > 0.9:
+            reward -= 10.0
 
         # 7. Update State
         self.current_step += 1
@@ -268,6 +280,7 @@ class EmissionControlEnv(gym.Env):
             "speed_error": speed_error,
             "nox": nox_tp,
             "fuel": fuel_mg,
+            "engine_on": engine_on,
             "ice_torque": ice_torque,
             "ice_speed_rpm": ice_speed_rpm,
             "em2_torque_nm": em2_torque_nm,

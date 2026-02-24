@@ -143,42 +143,53 @@ def plot_actions(results, log_dir, window_start=300, window_size=30):
     time_steps = np.arange(start_idx, end_idx)
 
     # Extract data slices
+    engine_on = results.get("engine_on", [False] * total_len)[start_idx:end_idx]
     ice_speed = results["ice_speed_rpm"][start_idx:end_idx]
     em2_torque = results["em2_torque_nm"][start_idx:end_idx]
     fuel = results["fuel"][start_idx:end_idx]
     brake = results["brake_perc"][start_idx:end_idx]
 
-    fig, axes = plt.subplots(4, 1, figsize=(12, 16), sharex=True)
+    fig, axes = plt.subplots(5, 1, figsize=(12, 20), sharex=False)
 
-    # 1. ICE Speed
-    axes[0].plot(time_steps, ice_speed, label="ICE Speed (RPM)", color="blue")
-    axes[0].set_ylabel("RPM")
-    axes[0].set_title("ICE Speed")
+    # 1. Engine State
+    axes[0].step(time_steps, engine_on, label="Engine On", color="purple", where="mid")
+    axes[0].set_ylabel("Boolean")
+    axes[0].set_title("ICE Engine State")
+    axes[0].set_ylim(-0.2, 1.2)
+    axes[0].set_yticks([0, 1])
+    axes[0].set_yticklabels(["Off", "On"])
     axes[0].grid(True)
     axes[0].legend()
 
-    # 2. EM2 Torque
-    axes[1].plot(time_steps, em2_torque, label="EM2 Torque (Nm)", color="green")
-    axes[1].set_ylabel("Torque (Nm)")
-    axes[1].set_title("EM2 Torque")
+    # 2. ICE Speed
+    axes[1].plot(time_steps, ice_speed, label="ICE Speed (RPM)", color="blue")
+    axes[1].set_ylabel("RPM")
+    axes[1].set_title("ICE Speed")
     axes[1].grid(True)
     axes[1].legend()
 
-    # 3. Fuel Injection
-    axes[2].plot(time_steps, fuel, label="Fuel Injection (mg)", color="orange")
-    axes[2].set_ylabel("Fuel (mg)")
-    axes[2].set_title("Fuel Injection per Step")
+    # 3. EM2 Torque
+    axes[2].plot(time_steps, em2_torque, label="EM2 Torque (Nm)", color="green")
+    axes[2].set_ylabel("Torque (Nm)")
+    axes[2].set_title("EM2 Torque")
     axes[2].grid(True)
     axes[2].legend()
 
-    # 4. Brake
-    axes[3].plot(time_steps, brake, label="Brake (%)", color="red")
-    axes[3].set_ylabel("Brake (0-1)")
-    axes[3].set_xlabel("Time Step (s)")
-    axes[3].set_title("Brake Command")
-    axes[3].set_ylim(-0.1, 1.1)
+    # 4. Fuel Injection
+    axes[3].plot(time_steps, fuel, label="Fuel Injection (mg)", color="orange")
+    axes[3].set_ylabel("Fuel (mg)")
+    axes[3].set_title("Fuel Injection per Step")
     axes[3].grid(True)
     axes[3].legend()
+
+    # 5. Brake
+    axes[4].plot(time_steps, brake, label="Brake (%)", color="red")
+    axes[4].set_ylabel("Brake (%)")
+    axes[4].set_xlabel("Time Step (s)")
+    axes[4].set_title("Brake Command")
+    axes[4].set_ylim(-5.0, 105.0)
+    axes[4].grid(True)
+    axes[4].legend()
 
     plt.tight_layout()
     save_path = os.path.join(log_dir, "action_results.png")
