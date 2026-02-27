@@ -77,14 +77,18 @@ class EmissionControlEnv(gym.Env):
         # Define Observation Space
         # [Car_Speed (km/h), Speed_Error (km/h), SOC (0-1), ICE_Torque (Nm),
         # NOx (g/s), Engine_On (0-1), SOC_Error (-1 to 1)]
+        self.obs_low = np.array(
+            [-50.0, -300.0, 0.0, -500.0, 0.0, 0.0, -1.0], dtype=np.float32
+        )
+        self.obs_high = np.array(
+            [250.0, 300.0, 1.0, 1000.0, 100.0, 1.0, 1.0], dtype=np.float32
+        )
+
+        # The agent receives normalized inputs strictly between -1.0 and 1.0
         self.observation_space = spaces.Box(
-            low=np.array(
-                [-50.0, -300.0, 0.0, -500.0, 0.0, 0.0, -1.0], dtype=np.float32
-            ),
-            high=np.array(
-                [250.0, 300.0, 1.0, 1000.0, 100.0, 1.0, 1.0],
-                dtype=np.float32,
-            ),
+            low=-1.0,
+            high=1.0,
+            shape=(7,),
             dtype=np.float32,
         )
 
@@ -157,7 +161,7 @@ class EmissionControlEnv(gym.Env):
         target_speed = self.df.loc[0, self.target_col_name()]
         initial_speed_error = target_speed - self.last_car_speed
 
-        obs = np.array(
+        raw_obs = np.array(
             [
                 self.last_car_speed,
                 initial_speed_error,
@@ -170,7 +174,16 @@ class EmissionControlEnv(gym.Env):
             dtype=np.float32,
         )
 
-        return obs, {}
+        # Normalize to [-1.0, 1.0]
+        obs = 2.0 * (raw_obs - self.obs_low) / (self.obs_high - self.obs_low) - 1.0
+        obs = np.clip(obs, -1.0, 1.0)
+
+        # Expose raw unnormalized data via info parameter for evaluation mapping
+        info = {
+            "time_s": self.df.loc[0, self.col_map["time"]],
+            "raw_obs": raw_obs,
+        }
+        return obs, info
 
     def step(self, action):
         # 1. Rescale Action
@@ -248,16 +261,20 @@ class EmissionControlEnv(gym.Env):
         norm_brake = 100.0  # Max brake percentage bounds (%)
         norm_soc = 0.4  # Typical maximum allowed SOC drift scale
 
+        # To cap penalties in case of hallucinations
+        safe_speed_penalty = min(speed_error / norm_speed, 1.0)
+        safe_emission_penalty = min(nox_tp / norm_emission, 1.0)
+
         reward = 0.0
 
         ## DO NOT EDIT REWARDS HERE; INSTEAD IN config.py!!!!
-        reward -= config.W_SPEED * (speed_error / norm_speed)
-        reward -= config.W_EMISSION * (nox_tp / norm_emission)
+        reward -= config.W_SPEED * safe_speed_penalty
+        reward -= config.W_EMISSION * safe_emission_penalty
         reward -= config.W_FUEL * (fuel_mg / norm_fuel)
         reward -= config.W_BRAKE * (brake_perc / norm_brake)
         reward -= config.W_SOC * (soc_error_squared / norm_soc)
 
-        if engine_on != self.last_engine_on:
+        if engine_on and not self.last_engine_on:
             reward -= config.W_FLICKER
 
         # 7. Update State
@@ -284,7 +301,7 @@ class EmissionControlEnv(gym.Env):
 
         soc_error = soc - self.initial_soc
 
-        obs = np.array(
+        raw_obs = np.array(
             [
                 car_speed,
                 next_speed_error,
@@ -297,7 +314,12 @@ class EmissionControlEnv(gym.Env):
             dtype=np.float32,
         )
 
+        # Normalize to [-1.0, 1.0]
+        obs = 2.0 * (raw_obs - self.obs_low) / (self.obs_high - self.obs_low) - 1.0
+        obs = np.clip(obs, -1.0, 1.0)
+
         info = {
+            "time_s": self.df.loc[self.current_step, self.col_map["time"]],
             "speed_error": speed_error,
             "nox": nox_tp,
             "fuel": fuel_mg,
@@ -306,6 +328,7 @@ class EmissionControlEnv(gym.Env):
             "ice_speed_rpm": ice_speed_rpm,
             "em2_torque_nm": em2_torque_nm,
             "brake_perc": brake_perc,
+            "raw_obs": raw_obs,
         }
 
         return obs, reward, terminated, truncated, info

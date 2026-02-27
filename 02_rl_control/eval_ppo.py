@@ -108,13 +108,13 @@ def evaluate_model(model_path, eval_log_dir=None, train_config=None):
     }
 
     # Store initial state
-    eval_results["speed_actual"].append(obs[0])
+    eval_results["speed_actual"].append(info["raw_obs"][0])
     eval_results["speed_target"].append(
-        obs[0] + obs[1]
+        info["raw_obs"][0] + info["raw_obs"][1]
     )  # Target Speed = Car_Speed + Speed_Error
-    eval_results["soc"].append(obs[2])
-    eval_results["ice_torque"].append(obs[3])
-    eval_results["nox"].append(obs[4])
+    eval_results["soc"].append(info["raw_obs"][2])
+    eval_results["ice_torque"].append(info["raw_obs"][3])
+    eval_results["nox"].append(info["raw_obs"][4])
     eval_results["fuel"].append(0.0)
     eval_results["engine_on"].append(False)
     eval_results["ice_speed_rpm"].append(0.0)
@@ -126,13 +126,13 @@ def evaluate_model(model_path, eval_log_dir=None, train_config=None):
         obs, reward, terminated, truncated, info = env.step(action)
         total_reward += reward
 
-        eval_results["speed_actual"].append(obs[0])
+        eval_results["speed_actual"].append(info["raw_obs"][0])
         eval_results["speed_target"].append(
-            obs[0] + obs[1]
+            info["raw_obs"][0] + info["raw_obs"][1]
         )  # Target Speed = Car_Speed + Speed_Error
-        eval_results["soc"].append(obs[2])
-        eval_results["ice_torque"].append(obs[3])
-        eval_results["nox"].append(obs[4])
+        eval_results["soc"].append(info["raw_obs"][2])
+        eval_results["ice_torque"].append(info["raw_obs"][3])
+        eval_results["nox"].append(info["raw_obs"][4])
         eval_results["fuel"].append(info.get("fuel", 0.0))
         eval_results["engine_on"].append(info.get("engine_on", False))
         eval_results["ice_speed_rpm"].append(info.get("ice_speed_rpm", 0.0))

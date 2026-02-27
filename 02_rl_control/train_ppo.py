@@ -11,6 +11,7 @@ from stable_baselines3.common.callbacks import BaseCallback, CheckpointCallback
 import warnings
 import argparse
 
+
 # Suppress sklearn warnings about feature names
 warnings.filterwarnings(
     "ignore",
@@ -90,6 +91,7 @@ def main(args):
             gae_lambda=train_config["gae_lambda"],
             clip_range=train_config["clip_range"],
             tensorboard_log=log_dir,
+            device=args.agent_device,
         )
     else:
         model = PPO(
@@ -104,6 +106,7 @@ def main(args):
             gae_lambda=train_config["gae_lambda"],
             clip_range=train_config["clip_range"],
             tensorboard_log=log_dir,
+            device=args.agent_device,
         )
 
     # Callbacks
@@ -148,6 +151,13 @@ if __name__ == "__main__":
         type=str,
         default=None,
         help="Path to an existing model (.zip) to continue training from",
+    )
+    parser.add_argument(
+        "--agent_device",
+        type=str,
+        default="auto",
+        help="Device for the PPO agent (e.g. 'cpu', 'cuda', 'auto'). "
+        "Use 'cpu' when GPU is reserved for environment model inference.",
     )
     args = parser.parse_args()
 

@@ -36,11 +36,11 @@ TOTAL_TIMESTEPS = 400000
 
 # Reward Weights
 W_SPEED = 1.0
-W_EMISSION = 0.80
-W_FUEL = 0.60
-W_BRAKE = 0.25
-W_SOC = 0.30
-W_FLICKER = 1.0
+W_EMISSION = 0.90
+W_FUEL = 0
+W_BRAKE = 0.35
+W_SOC = 0.90
+W_FLICKER = 0.5
 
 ## TRAINING END
 ############################
