@@ -28,56 +28,42 @@ except ImportError:
 def calculate_emissions_per_km(results, log_dir):
     speed_actual = np.array(results["speed_actual"])
     nox_gs = np.array(results["nox"])
-    co_gs = np.array(results["co"])
 
     dt = 0.5  # 1 step = 0.5 seconds
 
     distance_km = 0.0
     accumulated_nox_mg = 0.0
-    accumulated_co_mg = 0.0
 
     km_counter = 1
 
     out_path = os.path.join(log_dir, "emissions_per_km.txt")
     with open(out_path, "w") as f:
-        f.write(
-            "Kilometer, NOx (mg/km), CO (mg/km), NOx_Pass (<=80 mg/km), CO_Pass (<=500 mg/km)\n"
-        )
+        f.write("Kilometer, NOx (mg/km), NOx_Pass (<=80 mg/km)\n")
 
-        for v, nox, co in zip(speed_actual, nox_gs, co_gs):
+        for v, nox in zip(speed_actual, nox_gs):
             dist_step = v * dt / 3600.0
 
             # Emissions in mg for this step = rate (g/s) * dt (s) * 1000 (mg/g)
             nox_step_mg = nox * dt * 1000.0
-            co_step_mg = co * dt * 1000.0
 
             distance_km += dist_step
             accumulated_nox_mg += nox_step_mg
-            accumulated_co_mg += co_step_mg
 
             if distance_km >= 1.0:
                 nox_pass = accumulated_nox_mg <= 80.0
-                co_pass = accumulated_co_mg <= 500.0
 
-                f.write(
-                    f"{km_counter}, {accumulated_nox_mg:.2f}, {accumulated_co_mg:.2f}, {nox_pass}, {co_pass}\n"
-                )
+                f.write(f"{km_counter}, {accumulated_nox_mg:.2f}, {nox_pass}\n")
 
                 # Reset accumulators
                 distance_km = 0.0
                 accumulated_nox_mg = 0.0
-                accumulated_co_mg = 0.0
                 km_counter += 1
 
         # Handle the remaining partial kilometer
         if distance_km > 0.1:  # Only report if at least 100m driven
             nox_per_km = accumulated_nox_mg / distance_km
-            co_per_km = accumulated_co_mg / distance_km
             nox_pass = nox_per_km <= 80.0
-            co_pass = co_per_km <= 500.0
-            f.write(
-                f"Partial ({distance_km:.2f} km), {nox_per_km:.2f}, {co_per_km:.2f}, {nox_pass}, {co_pass}\n"
-            )
+            f.write(f"Partial ({distance_km:.2f} km), {nox_per_km:.2f}, {nox_pass}\n")
 
 
 def evaluate_model(model_path, eval_log_dir=None, train_config=None):
@@ -114,7 +100,6 @@ def evaluate_model(model_path, eval_log_dir=None, train_config=None):
         "soc": [],
         "ice_torque": [],
         "nox": [],
-        "co": [],
         "fuel": [],
         "engine_on": [],
         "ice_speed_rpm": [],
@@ -124,11 +109,12 @@ def evaluate_model(model_path, eval_log_dir=None, train_config=None):
 
     # Store initial state
     eval_results["speed_actual"].append(obs[0])
-    eval_results["speed_target"].append(obs[1])
+    eval_results["speed_target"].append(
+        obs[0] + obs[1]
+    )  # Target Speed = Car_Speed + Speed_Error
     eval_results["soc"].append(obs[2])
     eval_results["ice_torque"].append(obs[3])
     eval_results["nox"].append(obs[4])
-    eval_results["co"].append(obs[5])
     eval_results["fuel"].append(0.0)
     eval_results["engine_on"].append(False)
     eval_results["ice_speed_rpm"].append(0.0)
@@ -141,11 +127,12 @@ def evaluate_model(model_path, eval_log_dir=None, train_config=None):
         total_reward += reward
 
         eval_results["speed_actual"].append(obs[0])
-        eval_results["speed_target"].append(obs[1])
+        eval_results["speed_target"].append(
+            obs[0] + obs[1]
+        )  # Target Speed = Car_Speed + Speed_Error
         eval_results["soc"].append(obs[2])
         eval_results["ice_torque"].append(obs[3])
         eval_results["nox"].append(obs[4])
-        eval_results["co"].append(obs[5])
         eval_results["fuel"].append(info.get("fuel", 0.0))
         eval_results["engine_on"].append(info.get("engine_on", False))
         eval_results["ice_speed_rpm"].append(info.get("ice_speed_rpm", 0.0))
@@ -159,13 +146,11 @@ def evaluate_model(model_path, eval_log_dir=None, train_config=None):
     speed_target = np.array(eval_results["speed_target"])
     fuel_mg = np.array(eval_results["fuel"])
     nox_gs = np.array(eval_results["nox"])
-    co_gs = np.array(eval_results["co"])
     soc = np.array(eval_results["soc"])
 
     dt = 0.5
     total_fuel_g = np.sum(fuel_mg) / 1000.0
     total_nox_g = np.sum(nox_gs) * dt
-    total_co_g = np.sum(co_gs) * dt
 
     speed_error = speed_actual - speed_target
     mae_speed = np.mean(np.abs(speed_error))
@@ -194,7 +179,6 @@ def evaluate_model(model_path, eval_log_dir=None, train_config=None):
             "total_reward": float(total_reward),
             "total_fuel_g": float(total_fuel_g),
             "total_nox_g": float(total_nox_g),
-            "total_co_g": float(total_co_g),
             "mae_speed_kmph": float(mae_speed),
             "rmse_speed_kmph": float(rmse_speed),
             "initial_soc": float(initial_soc),

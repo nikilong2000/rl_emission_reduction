@@ -225,3 +225,6 @@ ENV/
 
 *.venv*
 *.whl
+
+/*/Data_Drivetrain
+/*/Data_ICE

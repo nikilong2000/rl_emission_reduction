@@ -9,6 +9,7 @@ from stable_baselines3 import PPO
 from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.callbacks import BaseCallback, CheckpointCallback
 import warnings
+import argparse
 
 # Suppress sklearn warnings about feature names
 warnings.filterwarnings(
@@ -36,20 +37,7 @@ except ImportError:
     from utils import safety_utils
 
 
-def main():
-    import argparse
-
-    parser = argparse.ArgumentParser(
-        description="Train or continue training a PPO model."
-    )
-    parser.add_argument(
-        "--continue_from",
-        type=str,
-        default=None,
-        help="Path to an existing model (.zip) to continue training from",
-    )
-    args = parser.parse_args()
-
+def main(args):
     # Create Log Directory
     base_log_dir = os.path.join(current_dir, "logs")
     run_name = datetime.datetime.now().strftime("run_%Y%m%d_%H%M%S")
@@ -77,6 +65,7 @@ def main():
         "w_fuel": config.W_FUEL,
         "w_brake": config.W_BRAKE,
         "w_soc": config.W_SOC,
+        "w_flicker": config.W_FLICKER,
         "continued_run": args.continue_from is not None,
         "continued_from": args.continue_from,
     }
@@ -151,4 +140,15 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(
+        description="Train or continue training a PPO model."
+    )
+    parser.add_argument(
+        "--continue_from",
+        type=str,
+        default=None,
+        help="Path to an existing model (.zip) to continue training from",
+    )
+    args = parser.parse_args()
+
+    main(args)

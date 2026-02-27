@@ -75,12 +75,18 @@ class EmissionControlEnv(gym.Env):
         self.action_max = np.array([1.0, 4000.0, 421.0, 70.0, 100.0], dtype=np.float32)
 
         # Define Observation Space
-        # [Car_Speed (km/h), Target_Speed (km/h), SOC (0-1), ICE_Torque (Nm), NOx (g/s), CO (g/s)]
+        # [Car_Speed (km/h), Speed_Error (km/h), SOC (0-1), ICE_Torque (Nm),
+        # NOx (g/s), Engine_On (0-1), SOC_Error (-1 to 1)]
         self.observation_space = spaces.Box(
-            low=np.array([-50.0, -50.0, 0.0, -500.0, 0.0, 0.0], dtype=np.float32),
-            high=np.array([250.0, 250.0, 1.0, 1000.0, 100.0, 100.0], dtype=np.float32),
+            low=np.array(
+                [-50.0, -300.0, 0.0, -500.0, 0.0, 0.0, -1.0], dtype=np.float32
+            ),
+            high=np.array(
+                [250.0, 300.0, 1.0, 1000.0, 100.0, 1.0, 1.0],
+                dtype=np.float32,
+            ),
             dtype=np.float32,
-        )  # TODO not used for now
+        )
 
         # State variables
         self.last_ice_torque = 0.0
@@ -88,7 +94,7 @@ class EmissionControlEnv(gym.Env):
         self.last_soc = 0.7
         self.initial_soc = self.last_soc
         self.last_nox = 0.0
-        self.last_co = 0.0
+        self.last_engine_on = False
 
         # Column names mapping
         self.col_map = {
@@ -146,18 +152,20 @@ class EmissionControlEnv(gym.Env):
         self.last_soc = 0.7
         self.initial_soc = self.last_soc
         self.last_nox = 0.0
-        self.last_co = 0.0
+        self.last_engine_on = False
 
         target_speed = self.df.loc[0, self.target_col_name()]
+        initial_speed_error = target_speed - self.last_car_speed
 
         obs = np.array(
             [
                 self.last_car_speed,
-                target_speed,
+                initial_speed_error,
                 self.last_soc,
                 self.last_ice_torque,
                 self.last_nox,
-                self.last_co,
+                float(self.last_engine_on),
+                0.0,  # Initial SOC error is exactly 0.0
             ],
             dtype=np.float32,
         )
@@ -210,11 +218,9 @@ class EmissionControlEnv(gym.Env):
         # outputs = ICE_Torque_Nm, fuel_tot_gps, NOx_eo_gps, CO_eo_gps, THC_eo_gps, T_gas_eo_K, NOx_tp_gps, CO_tp_gps, ...
         # Index 0: ICE_Torque_Nm
         # Index 6: NOx_tp_gps (Tailpipe)
-        # Index 7: CO_tp_gps (Tailpipe)
 
         ice_torque = ice_pred[0][0]
         nox_tp = ice_pred[0][6]
-        co_tp = ice_pred[0][7]
 
         # 4. Prepare Inputs for PG Model
         # Inputs: "ICE_Speed_rpm", "ICE: ICE_Torque_Nm", "EM2_Torque_Nm", "Brake_perc"
@@ -233,23 +239,26 @@ class EmissionControlEnv(gym.Env):
         target_speed = self.df.loc[self.current_step, self.target_col_name()]
 
         speed_error = abs(target_speed - car_speed)
+        soc_error_squared = (soc - self.initial_soc) ** 2
 
         # Normalization factors to bring terms roughly into [0, 1] range
         norm_speed = 50.0  # Max expected practical speed error (km/h)
         norm_emission = 0.1  # Typical high combined tailpipe emissions (g/s)
         norm_fuel = 70.0  # Max fuel injection per step from config (mg)
         norm_brake = 100.0  # Max brake percentage bounds (%)
-        norm_soc = 0.7  # Typical maximum allowed SOC drift scale
+        norm_soc = 0.4  # Typical maximum allowed SOC drift scale
 
         reward = 0.0
+
+        ## DO NOT EDIT REWARDS HERE; INSTEAD IN config.py!!!!
         reward -= config.W_SPEED * (speed_error / norm_speed)
-        reward -= config.W_EMISSION * ((nox_tp + co_tp) / norm_emission)
+        reward -= config.W_EMISSION * (nox_tp / norm_emission)
         reward -= config.W_FUEL * (fuel_mg / norm_fuel)
         reward -= config.W_BRAKE * (brake_perc / norm_brake)
-        reward -= config.W_SOC * (abs(soc - self.initial_soc) / norm_soc)
+        reward -= config.W_SOC * (soc_error_squared / norm_soc)
 
-        if soc < 0.3 or soc > 0.9:
-            reward -= 10.0
+        if engine_on != self.last_engine_on:
+            reward -= config.W_FLICKER
 
         # 7. Update State
         self.current_step += 1
@@ -257,7 +266,7 @@ class EmissionControlEnv(gym.Env):
         self.last_car_speed = car_speed
         self.last_soc = soc
         self.last_nox = nox_tp
-        self.last_co = co_tp
+        self.last_engine_on = engine_on
 
         terminated = False
         truncated = False
@@ -271,8 +280,20 @@ class EmissionControlEnv(gym.Env):
             else 0.0
         )
 
+        next_speed_error = next_target_speed - car_speed
+
+        soc_error = soc - self.initial_soc
+
         obs = np.array(
-            [car_speed, next_target_speed, soc, ice_torque, nox_tp, co_tp],
+            [
+                car_speed,
+                next_speed_error,
+                soc,
+                ice_torque,
+                nox_tp,
+                float(engine_on),
+                soc_error,
+            ],
             dtype=np.float32,
         )
 
