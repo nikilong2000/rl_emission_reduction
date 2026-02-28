@@ -66,6 +66,7 @@ def main(args):
         "w_fuel": config.W_FUEL,
         "w_brake": config.W_BRAKE,
         "w_soc": config.W_SOC,
+        "w_soc_squared": config.W_SOC_SQUARED,
         "w_flicker": config.W_FLICKER,
         "continued_run": args.continue_from is not None,
         "continued_from": args.continue_from,

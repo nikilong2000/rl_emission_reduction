@@ -1,0 +1,55 @@
+========================================================================
+THERMAL CORRELATION ANALYSIS — SUMMARY
+========================================================================
+
+1. HIGHEST PAIRWISE CORRELATIONS (Pearson)
+  T_gas_eo_K           ↔ T_Wall_SCR1_K         r = +0.9975
+  T_Wall_SCR2_K        ↔ T_Wall_SCR3_K         r = +0.9960
+  T_Wall_DOC_K         ↔ T_Wall_SCR2_K         r = +0.9426
+  T_Wall_SCR1_K        ↔ T_Wall_DOC_K          r = +0.9270
+  T_Wall_DOC_K         ↔ T_Wall_SCR3_K         r = +0.9230
+  T_gas_eo_K           ↔ T_Wall_DOC_K          r = +0.9180
+  T_Wall_SCR1_K        ↔ T_Wall_SCR2_K         r = +0.8908
+  T_gas_eo_K           ↔ T_Wall_SCR2_K         r = +0.8864
+  T_Wall_SCR1_K        ↔ T_Wall_SCR3_K         r = +0.8829
+  T_gas_eo_K           ↔ T_Wall_SCR3_K         r = +0.8789
+  T_Wall_SCR3_K        ↔ T_gas_tp_K            r = +0.8659
+  T_Wall_SCR2_K        ↔ T_gas_tp_K            r = +0.8577
+  T_Wall_DOC_K         ↔ T_gas_tp_K            r = +0.8545
+  T_Wall_SCR1_K        ↔ T_gas_tp_K            r = +0.8278
+  T_gas_eo_K           ↔ T_gas_tp_K            r = +0.8227
+  T_Sub_DPF_K          ↔ T_Wall_SCR2_K         r = +0.7942
+  T_Sub_DPF_K          ↔ T_Wall_SCR3_K         r = +0.7918
+  T_Wall_DOC_K         ↔ T_Sub_DPF_K           r = +0.6563
+  T_Wall_SCR1_K        ↔ T_Sub_DPF_K           r = +0.6377
+  T_gas_eo_K           ↔ T_Sub_DPF_K           r = +0.6358
+  T_Sub_DPF_K          ↔ T_gas_tp_K            r = +0.4244
+
+2. PCA — INDEPENDENT THERMAL DIMENSIONS
+  PC1:  85.9% variance  (cumulative:  85.9%)
+  PC2:   9.0% variance  (cumulative:  94.9%)
+  PC3:   3.6% variance  (cumulative:  98.5%)
+  PC4:   1.2% variance  (cumulative:  99.6%)
+  PC5:   0.3% variance  (cumulative:  99.9%)
+  PC6:   0.0% variance  (cumulative: 100.0%)
+  PC7:   0.0% variance  (cumulative: 100.0%)
+  Components for 90% variance: 2
+  Components for 95% variance: 3
+
+3. PCA LOADINGS
+                    PC1       PC2       PC3       PC4       PC5       PC6       PC7
+T_gas_eo_K     0.388112 -0.160637  0.534575 -0.245679  0.097108 -0.581137 -0.360952
+T_Wall_SCR1_K  0.389654 -0.162260  0.515616 -0.174412 -0.002602  0.599561  0.407531
+T_Wall_DOC_K   0.393221 -0.115943  0.045386  0.850461 -0.282843  0.029249 -0.160420
+T_Sub_DPF_K    0.307111  0.823684 -0.005180 -0.179466 -0.440934 -0.012556 -0.020282
+T_Wall_SCR2_K  0.400996  0.113791 -0.273777  0.120123  0.428073 -0.388782  0.634408
+T_Wall_SCR3_K  0.399084  0.111976 -0.327058 -0.084828  0.538622  0.386175 -0.524199
+T_gas_tp_K     0.358516 -0.480085 -0.514161 -0.363462 -0.492726 -0.038874  0.015085
+
+4. EXHAUST PATH THERMAL PROPAGATION DELAYS
+  T_gas_eo_K           → T_Wall_DOC_K          lag = +11.5s  (r = 0.644)
+  T_Wall_DOC_K         → T_Sub_DPF_K           lag =  +0.0s  (r = 0.856)
+  T_Sub_DPF_K          → T_Wall_SCR1_K         lag = -11.0s  (r = 0.531)
+  T_Wall_SCR1_K        → T_Wall_SCR2_K         lag =  +0.0s  (r = 0.520)
+  T_Wall_SCR2_K        → T_Wall_SCR3_K         lag =  +0.0s  (r = 0.994)
+  T_Wall_SCR3_K        → T_gas_tp_K            lag =  +0.0s  (r = 0.995)

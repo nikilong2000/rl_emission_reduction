@@ -1,0 +1,32 @@
+{
+    "model_path": "/Users/niklaslongschiefelbein/local_documents/THESIS/code/rl_emission_reduction/02_rl_control/logs/run_20260228_114656/ppo_emission_final",
+    "configuration": {
+        "learning_rate": 0.0003,
+        "n_steps": 2048,
+        "batch_size": 256,
+        "n_epochs": 10,
+        "gamma": 0.99,
+        "gae_lambda": 0.95,
+        "clip_range": 0.2,
+        "total_timesteps": 400000,
+        "w_speed": 1.0,
+        "w_emission": 1.0,
+        "w_fuel": 0,
+        "w_brake": 0.5,
+        "w_soc": 1.0,
+        "w_flicker": 0,
+        "continued_run": false,
+        "continued_from": null
+    },
+    "continued_run": false,
+    "continued_from": null,
+    "total_reward": -462.1965860000758,
+    "total_fuel_g": 4.266329201936721,
+    "total_nox_g": 0.9670618176460266,
+    "mae_speed_kmph": 3.186521530151367,
+    "rmse_speed_kmph": 4.905941009521484,
+    "initial_soc": 0.699999988079071,
+    "final_soc": 0.39053693413734436,
+    "delta_soc": -0.3094630539417267,
+    "custom_notes": ""
+}

@@ -78,10 +78,10 @@ class EmissionControlEnv(gym.Env):
         # [Car_Speed (km/h), Speed_Error (km/h), SOC (0-1), ICE_Torque (Nm),
         # NOx (g/s), Engine_On (0-1), SOC_Error (-1 to 1)]
         self.obs_low = np.array(
-            [-50.0, -300.0, 0.0, -500.0, 0.0, 0.0, -1.0], dtype=np.float32
+            [-5.0, -155.0, 0.0, -50.0, 0.0, 0.0, -1.0], dtype=np.float32
         )
         self.obs_high = np.array(
-            [250.0, 300.0, 1.0, 1000.0, 100.0, 1.0, 1.0], dtype=np.float32
+            [150.0, 155.0, 1.0, 300.0, 10.0, 1.0, 1.0], dtype=np.float32
         )
 
         # The agent receives normalized inputs strictly between -1.0 and 1.0
@@ -252,6 +252,7 @@ class EmissionControlEnv(gym.Env):
         target_speed = self.df.loc[self.current_step, self.target_col_name()]
 
         speed_error = abs(target_speed - car_speed)
+        soc_error = abs(soc - self.initial_soc)
         soc_error_squared = (soc - self.initial_soc) ** 2
 
         # Normalization factors to bring terms roughly into [0, 1] range
@@ -259,7 +260,7 @@ class EmissionControlEnv(gym.Env):
         norm_emission = 0.1  # Typical high combined tailpipe emissions (g/s)
         norm_fuel = 70.0  # Max fuel injection per step from config (mg)
         norm_brake = 100.0  # Max brake percentage bounds (%)
-        norm_soc = 0.4  # Typical maximum allowed SOC drift scale
+        norm_soc = 0.3  # Typical maximum allowed SOC drift scale
 
         # To cap penalties in case of hallucinations
         safe_speed_penalty = min(speed_error / norm_speed, 1.0)
@@ -272,7 +273,8 @@ class EmissionControlEnv(gym.Env):
         reward -= config.W_EMISSION * safe_emission_penalty
         reward -= config.W_FUEL * (fuel_mg / norm_fuel)
         reward -= config.W_BRAKE * (brake_perc / norm_brake)
-        reward -= config.W_SOC * (soc_error_squared / norm_soc)
+        reward -= config.W_SOC * soc_error
+        reward -= config.W_SOC_SQUARED * soc_error_squared
 
         if engine_on and not self.last_engine_on:
             reward -= config.W_FLICKER
