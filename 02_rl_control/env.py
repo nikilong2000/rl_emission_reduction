@@ -77,18 +77,9 @@ class EmissionControlEnv(gym.Env):
         # Define Observation Space
         # [Car_Speed (km/h), Speed_Error (km/h), SOC (0-1), ICE_Torque (Nm),
         # NOx (g/s), Engine_On (0-1), SOC_Error (-1 to 1)]
-        self.obs_low = np.array(
-            [-5.0, -155.0, 0.0, -50.0, 0.0, 0.0, -1.0], dtype=np.float32
-        )
-        self.obs_high = np.array(
-            [150.0, 155.0, 1.0, 300.0, 10.0, 1.0, 1.0], dtype=np.float32
-        )
-
-        # The agent receives normalized inputs strictly between -1.0 and 1.0
         self.observation_space = spaces.Box(
-            low=-1.0,
-            high=1.0,
-            shape=(7,),
+            low=np.array([-5.0, -155.0, 0.0, -50.0, 0.0, 0.0, -1.0], dtype=np.float32),
+            high=np.array([150.0, 155.0, 1.0, 300.0, 10.0, 1.0, 1.0], dtype=np.float32),
             dtype=np.float32,
         )
 
@@ -161,7 +152,7 @@ class EmissionControlEnv(gym.Env):
         target_speed = self.df.loc[0, self.target_col_name()]
         initial_speed_error = target_speed - self.last_car_speed
 
-        raw_obs = np.array(
+        obs = np.array(
             [
                 self.last_car_speed,
                 initial_speed_error,
@@ -174,14 +165,8 @@ class EmissionControlEnv(gym.Env):
             dtype=np.float32,
         )
 
-        # Normalize to [-1.0, 1.0]
-        obs = 2.0 * (raw_obs - self.obs_low) / (self.obs_high - self.obs_low) - 1.0
-        obs = np.clip(obs, -1.0, 1.0)
-
-        # Expose raw unnormalized data via info parameter for evaluation mapping
         info = {
             "time_s": self.df.loc[0, self.col_map["time"]],
-            "raw_obs": raw_obs,
         }
         return obs, info
 
@@ -303,7 +288,7 @@ class EmissionControlEnv(gym.Env):
 
         soc_error = soc - self.initial_soc
 
-        raw_obs = np.array(
+        obs = np.array(
             [
                 car_speed,
                 next_speed_error,
@@ -316,10 +301,6 @@ class EmissionControlEnv(gym.Env):
             dtype=np.float32,
         )
 
-        # Normalize to [-1.0, 1.0]
-        obs = 2.0 * (raw_obs - self.obs_low) / (self.obs_high - self.obs_low) - 1.0
-        obs = np.clip(obs, -1.0, 1.0)
-
         info = {
             "time_s": self.df.loc[self.current_step, self.col_map["time"]],
             "speed_error": speed_error,
@@ -330,7 +311,6 @@ class EmissionControlEnv(gym.Env):
             "ice_speed_rpm": ice_speed_rpm,
             "em2_torque_nm": em2_torque_nm,
             "brake_perc": brake_perc,
-            "raw_obs": raw_obs,
         }
 
         return obs, reward, terminated, truncated, info

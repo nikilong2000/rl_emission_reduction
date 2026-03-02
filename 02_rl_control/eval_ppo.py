@@ -85,12 +85,30 @@ def evaluate_model(model_path, eval_log_dir=None, train_config=None):
         log_dir = eval_log_dir
     print(f"Logging evaluation results to {log_dir}")
 
+    from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
+
     # Initialize environment
     print("Evaluating Model...")
-    env = EmissionControlEnv()
-    obs, info = env.reset()
-    terminated = False
-    truncated = False
+
+    def make_env():
+        return EmissionControlEnv()
+
+    env = DummyVecEnv([make_env])
+
+    model_dir = os.path.dirname(os.path.abspath(model_path))
+    vec_norm_path = os.path.join(model_dir, "vec_normalize.pkl")
+    if os.path.exists(vec_norm_path):
+        env = VecNormalize.load(vec_norm_path, env)
+        env.training = False
+        env.norm_reward = False
+        print(f"Loaded VecNormalize stats from {vec_norm_path}")
+    else:
+        print(
+            "Warning: Could not find vec_normalize.pkl. Evaluation might be inaccurate."
+        )
+
+    obs = env.reset()
+    done = False
     total_reward = 0
 
     # Data collection for plotting
@@ -108,36 +126,42 @@ def evaluate_model(model_path, eval_log_dir=None, train_config=None):
     }
 
     # Store initial state
-    eval_results["speed_actual"].append(info["raw_obs"][0])
+    raw_obs = env.get_original_obs()[0]
+
+    eval_results["speed_actual"].append(raw_obs[0])
     eval_results["speed_target"].append(
-        info["raw_obs"][0] + info["raw_obs"][1]
+        raw_obs[0] + raw_obs[1]
     )  # Target Speed = Car_Speed + Speed_Error
-    eval_results["soc"].append(info["raw_obs"][2])
-    eval_results["ice_torque"].append(info["raw_obs"][3])
-    eval_results["nox"].append(info["raw_obs"][4])
+    eval_results["soc"].append(raw_obs[2])
+    eval_results["ice_torque"].append(raw_obs[3])
+    eval_results["nox"].append(raw_obs[4])
     eval_results["fuel"].append(0.0)
     eval_results["engine_on"].append(False)
     eval_results["ice_speed_rpm"].append(0.0)
     eval_results["em2_torque_nm"].append(0.0)
     eval_results["brake_perc"].append(0.0)
 
-    while not (terminated or truncated):
+    while not done:
         action, _states = model.predict(obs, deterministic=True)
-        obs, reward, terminated, truncated, info = env.step(action)
-        total_reward += reward
+        obs, rewards, dones, infos = env.step(action)
+        done = dones[0]
+        total_reward += rewards[0]
 
-        eval_results["speed_actual"].append(info["raw_obs"][0])
+        i = infos[0]
+        raw_obs = env.get_original_obs()[0]
+
+        eval_results["speed_actual"].append(raw_obs[0])
         eval_results["speed_target"].append(
-            info["raw_obs"][0] + info["raw_obs"][1]
+            raw_obs[0] + raw_obs[1]
         )  # Target Speed = Car_Speed + Speed_Error
-        eval_results["soc"].append(info["raw_obs"][2])
-        eval_results["ice_torque"].append(info["raw_obs"][3])
-        eval_results["nox"].append(info["raw_obs"][4])
-        eval_results["fuel"].append(info.get("fuel", 0.0))
-        eval_results["engine_on"].append(info.get("engine_on", False))
-        eval_results["ice_speed_rpm"].append(info.get("ice_speed_rpm", 0.0))
-        eval_results["em2_torque_nm"].append(info.get("em2_torque_nm", 0.0))
-        eval_results["brake_perc"].append(info.get("brake_perc", 0.0))
+        eval_results["soc"].append(raw_obs[2])
+        eval_results["ice_torque"].append(raw_obs[3])
+        eval_results["nox"].append(raw_obs[4])
+        eval_results["fuel"].append(i.get("fuel", 0.0))
+        eval_results["engine_on"].append(i.get("engine_on", False))
+        eval_results["ice_speed_rpm"].append(i.get("ice_speed_rpm", 0.0))
+        eval_results["em2_torque_nm"].append(i.get("em2_torque_nm", 0.0))
+        eval_results["brake_perc"].append(i.get("brake_perc", 0.0))
 
     print(f"Evaluation finished. Total Reward: {total_reward}")
 

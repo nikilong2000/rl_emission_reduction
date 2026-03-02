@@ -46,10 +46,15 @@ def main(args):
     os.makedirs(log_dir, exist_ok=True)
     print(f"Logging to {log_dir}")
 
+    from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
+
     # Create Environment
     # Use Monitor to log episode rewards/lengths to csv for the callback
-    env = EmissionControlEnv()
-    env = Monitor(env, os.path.join(log_dir, "monitor.csv"))
+    def make_env():
+        e = EmissionControlEnv()
+        return Monitor(e, os.path.join(log_dir, "monitor.csv"))
+
+    env = DummyVecEnv([make_env])
 
     # Hyperparameters; keep for file writing
     train_config = {
@@ -74,6 +79,22 @@ def main(args):
 
     if args.continue_from:
         safety_utils.config_check(args.continue_from, train_config)
+
+        vec_norm_path = os.path.join(
+            os.path.dirname(args.continue_from), "vec_normalize.pkl"
+        )
+        if os.path.exists(vec_norm_path):
+            env = VecNormalize.load(vec_norm_path, env)
+            env.training = True
+            env.norm_reward = True
+            print(f"Loaded VecNormalize stats from {vec_norm_path}")
+        else:
+            print(
+                "Warning: Could not find vec_normalize.pkl. Starting fresh normalizer."
+            )
+            env = VecNormalize(env, norm_obs=True, norm_reward=True, clip_obs=10.0)
+    else:
+        env = VecNormalize(env, norm_obs=True, norm_reward=True, clip_obs=10.0)
 
     # Instantiate the agent
     if args.continue_from:
@@ -131,7 +152,8 @@ def main(args):
 
     # Save the final model
     model.save(os.path.join(log_dir, "ppo_emission_final"))
-    print(f"Model saved to {log_dir}")
+    env.save(os.path.join(log_dir, "vec_normalize.pkl"))
+    print(f"Model and VecNormalize stats saved to {log_dir}")
 
     # --- Evaluation Phase ---
     print("Evaluating Model...")
