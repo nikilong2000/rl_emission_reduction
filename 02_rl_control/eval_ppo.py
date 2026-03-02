@@ -20,9 +20,11 @@ sys.path.append(os.path.dirname(current_dir))
 try:
     from .env import EmissionControlEnv
     from .plotting import TrainingLivePlotCallback, plot_evaluation, plot_actions
+    from . import config
 except ImportError:
     from env import EmissionControlEnv
     from plotting import TrainingLivePlotCallback, plot_evaluation, plot_actions
+    import config
 
 
 def calculate_emissions_per_km(results, log_dir):
@@ -111,6 +113,14 @@ def evaluate_model(model_path, eval_log_dir=None, train_config=None):
     done = False
     total_reward = 0
 
+    # Observation indices (must match env.py observation layout)
+    OBS_IDX_CAR_SPEED = 0
+    OBS_IDX_SPEED_ERROR = 1
+    OBS_IDX_SOC = 2
+    OBS_IDX_ICE_TORQUE = 3
+    OBS_IDX_NOX = 4
+    OBS_IDX_THERMAL_START = 7  # thermal vars start at index 7
+
     # Data collection for plotting
     eval_results = {
         "speed_actual": [],
@@ -125,21 +135,29 @@ def evaluate_model(model_path, eval_log_dir=None, train_config=None):
         "brake_perc": [],
     }
 
+    # Add thermal variable columns
+    for name in config.THERMAL_OBS_NAMES:
+        eval_results[name] = []
+
     # Store initial state
     raw_obs = env.get_original_obs()[0]
 
-    eval_results["speed_actual"].append(raw_obs[0])
+    eval_results["speed_actual"].append(raw_obs[OBS_IDX_CAR_SPEED])
     eval_results["speed_target"].append(
-        raw_obs[0] + raw_obs[1]
+        raw_obs[OBS_IDX_CAR_SPEED] + raw_obs[OBS_IDX_SPEED_ERROR]
     )  # Target Speed = Car_Speed + Speed_Error
-    eval_results["soc"].append(raw_obs[2])
-    eval_results["ice_torque"].append(raw_obs[3])
-    eval_results["nox"].append(raw_obs[4])
+    eval_results["soc"].append(raw_obs[OBS_IDX_SOC])
+    eval_results["ice_torque"].append(raw_obs[OBS_IDX_ICE_TORQUE])
+    eval_results["nox"].append(raw_obs[OBS_IDX_NOX])
     eval_results["fuel"].append(0.0)
     eval_results["engine_on"].append(False)
     eval_results["ice_speed_rpm"].append(0.0)
     eval_results["em2_torque_nm"].append(0.0)
     eval_results["brake_perc"].append(0.0)
+
+    # Initial thermal values from observation
+    for j, name in enumerate(config.THERMAL_OBS_NAMES):
+        eval_results[name].append(raw_obs[OBS_IDX_THERMAL_START + j])
 
     while not done:
         action, _states = model.predict(obs, deterministic=True)
@@ -148,20 +166,31 @@ def evaluate_model(model_path, eval_log_dir=None, train_config=None):
         total_reward += rewards[0]
 
         i = infos[0]
-        raw_obs = env.get_original_obs()[0]
 
-        eval_results["speed_actual"].append(raw_obs[0])
+        # When DummyVecEnv hits `done=True`, it auto-resets the environment immediately.
+        # This causes `env.get_original_obs()` to return the NEXT episode's initial state (e.g. SOC 0.7)
+        # instead of our true final terminal state. We retrieve the terminal raw state directly from info.
+        if done and "raw_obs" in i:
+            raw_obs = i["raw_obs"]
+        else:
+            raw_obs = env.get_original_obs()[0]
+
+        eval_results["speed_actual"].append(raw_obs[OBS_IDX_CAR_SPEED])
         eval_results["speed_target"].append(
-            raw_obs[0] + raw_obs[1]
+            raw_obs[OBS_IDX_CAR_SPEED] + raw_obs[OBS_IDX_SPEED_ERROR]
         )  # Target Speed = Car_Speed + Speed_Error
-        eval_results["soc"].append(raw_obs[2])
-        eval_results["ice_torque"].append(raw_obs[3])
-        eval_results["nox"].append(raw_obs[4])
+        eval_results["soc"].append(raw_obs[OBS_IDX_SOC])
+        eval_results["ice_torque"].append(raw_obs[OBS_IDX_ICE_TORQUE])
+        eval_results["nox"].append(raw_obs[OBS_IDX_NOX])
         eval_results["fuel"].append(i.get("fuel", 0.0))
         eval_results["engine_on"].append(i.get("engine_on", False))
         eval_results["ice_speed_rpm"].append(i.get("ice_speed_rpm", 0.0))
         eval_results["em2_torque_nm"].append(i.get("em2_torque_nm", 0.0))
         eval_results["brake_perc"].append(i.get("brake_perc", 0.0))
+
+        # Thermal values from observation
+        for j, name in enumerate(config.THERMAL_OBS_NAMES):
+            eval_results[name].append(raw_obs[OBS_IDX_THERMAL_START + j])
 
     print(f"Evaluation finished. Total Reward: {total_reward}")
 
@@ -208,6 +237,7 @@ def evaluate_model(model_path, eval_log_dir=None, train_config=None):
             "initial_soc": float(initial_soc),
             "final_soc": float(final_soc),
             "delta_soc": float(delta_soc),
+            "thermal_obs_names": config.THERMAL_OBS_NAMES,
             "custom_notes": "",
         }
     )

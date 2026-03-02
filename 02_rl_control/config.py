@@ -40,11 +40,39 @@ W_SPEED = 1.0
 W_EMISSION = 0.85
 W_FUEL = 0.0
 W_BRAKE = 0.5
-W_SOC = 2.0
+W_SOC = 10.0
 W_SOC_SQUARED = 0.0
 W_FLICKER = 0.5
 
 ## TRAINING END
+############################
+
+## THERMAL OBSERVATION CONFIG START
+# ICE LSTM output indices for the 3 thermal variables (from PCA: 95% variance)
+# Based on config.txt output order:
+#   idx 5  = T_gas_eo_K      (engine-out gas temperature)
+#   idx 12 = T_Sub_DPF_K     (DPF substrate temperature)
+#   idx 15 = T_gas_tp_K      (tailpipe gas temperature)
+THERMAL_OBS_INDICES = [5, 12, 15]
+THERMAL_OBS_NAMES = ["T_gas_eo_K", "T_Sub_DPF_K", "T_gas_tp_K"]
+
+# Observation space bounds for thermal variables (K)
+# Based on training data distributions (see thermal_analysis_results/)
+THERMAL_OBS_LOW = [250.0, 250.0, 250.0]
+THERMAL_OBS_HIGH = [900.0, 900.0, 900.0]
+
+# Initial temperature at ambient (cold start)
+THERMAL_INIT_K = 298.0
+
+# SCR catalyst light-off temperature (K) — below this, SCR conversion is poor
+# ~250°C = 523K is a typical diesel SCR light-off temperature
+SCR_LIGHTOFF_K = 523.0
+
+# Multiplier for NOx penalty when SCR is cold (below light-off)
+# The base emission penalty is multiplied by this factor when T_gas_eo_K < SCR_LIGHTOFF_K
+W_COLD_NOX_MULTIPLIER = 1.5
+
+## THERMAL OBSERVATION CONFIG END
 ############################
 
 ## TODO: Not used for now

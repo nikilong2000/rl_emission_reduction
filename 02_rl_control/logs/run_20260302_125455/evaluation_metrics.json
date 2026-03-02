@@ -1,0 +1,38 @@
+{
+    "model_path": "/Users/niklaslongschiefelbein/local_documents/THESIS/code/rl_emission_reduction/02_rl_control/logs/run_20260302_125455/ppo_emission_final",
+    "configuration": {
+        "learning_rate": 0.0003,
+        "n_steps": 2048,
+        "batch_size": 256,
+        "n_epochs": 10,
+        "gamma": 0.99,
+        "gae_lambda": 0.95,
+        "clip_range": 0.2,
+        "total_timesteps": 400000,
+        "w_speed": 1.0,
+        "w_emission": 0.85,
+        "w_fuel": 0.0,
+        "w_brake": 0.5,
+        "w_soc": 10.0,
+        "w_soc_squared": 0.0,
+        "w_flicker": 0.5,
+        "continued_run": false,
+        "continued_from": null
+    },
+    "continued_run": false,
+    "continued_from": null,
+    "total_reward": -4451.59765625,
+    "total_fuel_g": 0.0,
+    "total_nox_g": -0.008541793562471867,
+    "mae_speed_kmph": 5.054873466491699,
+    "rmse_speed_kmph": 7.675840854644775,
+    "initial_soc": 0.699999988079071,
+    "final_soc": 0.37571001052856445,
+    "delta_soc": -0.3242899775505066,
+    "thermal_obs_names": [
+        "T_gas_eo_K",
+        "T_Sub_DPF_K",
+        "T_gas_tp_K"
+    ],
+    "custom_notes": ""
+}

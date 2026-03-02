@@ -16,6 +16,18 @@ except ImportError:
 class EmissionControlEnv(gym.Env):
     """
     Gym Environment for controlling ICE and Drivetrain to minimize emissions and track speed.
+
+    Observation space (10 dims):
+        [0] Car_Speed (km/h)
+        [1] Speed_Error (km/h)
+        [2] SOC (0-1)
+        [3] ICE_Torque (Nm)
+        [4] NOx (g/s)
+        [5] Engine_On (0/1)
+        [6] SOC_Error (-1 to 1)
+        [7] T_gas_eo_K (engine-out gas temperature, K)
+        [8] T_Sub_DPF_K (DPF substrate temperature, K)
+        [9] T_gas_tp_K (tailpipe gas temperature, K)
     """
 
     metadata = {"render_modes": ["human"]}
@@ -74,13 +86,22 @@ class EmissionControlEnv(gym.Env):
         )  # EngineOn Threshold, RPM, Torque, Fuel, Brake
         self.action_max = np.array([1.0, 4000.0, 421.0, 70.0, 100.0], dtype=np.float32)
 
+        # Thermal observation config
+        self.n_thermal = len(config.THERMAL_OBS_INDICES)
+
         # Define Observation Space
-        # [Car_Speed (km/h), Speed_Error (km/h), SOC (0-1), ICE_Torque (Nm),
-        # NOx (g/s), Engine_On (0-1), SOC_Error (-1 to 1)]
-        self.observation_space = spaces.Box(
-            low=np.array([-5.0, -155.0, 0.0, -50.0, 0.0, 0.0, -1.0], dtype=np.float32),
-            high=np.array([150.0, 155.0, 1.0, 300.0, 10.0, 1.0, 1.0], dtype=np.float32),
+        # [Car_Speed, Speed_Error, SOC, ICE_Torque, NOx, Engine_On, SOC_Error,
+        #  T_gas_eo_K, T_Sub_DPF_K, T_gas_tp_K]
+        obs_low = np.array(
+            [-5.0, -155.0, 0.0, -50.0, 0.0, 0.0, -1.0] + config.THERMAL_OBS_LOW,
             dtype=np.float32,
+        )
+        obs_high = np.array(
+            [150.0, 155.0, 1.0, 300.0, 10.0, 1.0, 1.0] + config.THERMAL_OBS_HIGH,
+            dtype=np.float32,
+        )
+        self.observation_space = spaces.Box(
+            low=obs_low, high=obs_high, dtype=np.float32
         )
 
         # State variables
@@ -90,6 +111,9 @@ class EmissionControlEnv(gym.Env):
         self.initial_soc = self.last_soc
         self.last_nox = 0.0
         self.last_engine_on = False
+        self.last_thermal = np.full(
+            self.n_thermal, config.THERMAL_INIT_K, dtype=np.float32
+        )
 
         # Column names mapping
         self.col_map = {
@@ -148,6 +172,9 @@ class EmissionControlEnv(gym.Env):
         self.initial_soc = self.last_soc
         self.last_nox = 0.0
         self.last_engine_on = False
+        self.last_thermal = np.full(
+            self.n_thermal, config.THERMAL_INIT_K, dtype=np.float32
+        )
 
         target_speed = self.df.loc[0, self.target_col_name()]
         initial_speed_error = target_speed - self.last_car_speed
@@ -161,12 +188,14 @@ class EmissionControlEnv(gym.Env):
                 self.last_nox,
                 float(self.last_engine_on),
                 0.0,  # Initial SOC error is exactly 0.0
-            ],
+            ]
+            + self.last_thermal.tolist(),
             dtype=np.float32,
         )
 
         info = {
             "time_s": self.df.loc[0, self.col_map["time"]],
+            "raw_obs": obs.copy(),
         }
         return obs, info
 
@@ -220,6 +249,12 @@ class EmissionControlEnv(gym.Env):
         ice_torque = ice_pred[0][0]
         nox_tp = ice_pred[0][6]
 
+        # Extract thermal variables from ICE model outputs
+        thermal_vals = np.array(
+            [ice_pred[0][idx] for idx in config.THERMAL_OBS_INDICES],
+            dtype=np.float32,
+        )
+
         # 4. Prepare Inputs for PG Model
         # Inputs: "ICE_Speed_rpm", "ICE: ICE_Torque_Nm", "EM2_Torque_Nm", "Brake_perc"
         pg_inputs = np.array([[ice_speed_rpm, ice_torque, em2_torque_nm, brake_perc]])
@@ -251,11 +286,17 @@ class EmissionControlEnv(gym.Env):
         safe_speed_penalty = min(speed_error / norm_speed, 1.0)
         safe_emission_penalty = min(nox_tp / norm_emission, 1.0)
 
+        # Thermal-aware NOx penalty: increase penalty when SCR is cold
+        # thermal_vals[0] = T_gas_eo_K (engine-out gas temp, representative of SCR inlet)
+        cold_nox_multiplier = 1.0
+        if thermal_vals[0] < config.SCR_LIGHTOFF_K:
+            cold_nox_multiplier = config.W_COLD_NOX_MULTIPLIER
+
         reward = 0.0
 
         ## DO NOT EDIT REWARDS HERE; INSTEAD IN config.py!!!!
         reward -= config.W_SPEED * safe_speed_penalty
-        reward -= config.W_EMISSION * safe_emission_penalty
+        reward -= config.W_EMISSION * safe_emission_penalty * cold_nox_multiplier
         reward -= config.W_FUEL * (fuel_mg / norm_fuel)
         reward -= config.W_BRAKE * (brake_perc / norm_brake)
         reward -= config.W_SOC * soc_error
@@ -271,6 +312,7 @@ class EmissionControlEnv(gym.Env):
         self.last_soc = soc
         self.last_nox = nox_tp
         self.last_engine_on = engine_on
+        self.last_thermal = thermal_vals
 
         terminated = False
         truncated = False
@@ -297,7 +339,8 @@ class EmissionControlEnv(gym.Env):
                 nox_tp,
                 float(engine_on),
                 soc_error,
-            ],
+            ]
+            + thermal_vals.tolist(),
             dtype=np.float32,
         )
 
@@ -312,6 +355,12 @@ class EmissionControlEnv(gym.Env):
             "em2_torque_nm": em2_torque_nm,
             "brake_perc": brake_perc,
         }
+
+        # Add thermal values to info for eval logging
+        for name, val in zip(config.THERMAL_OBS_NAMES, thermal_vals):
+            info[name] = float(val)
+
+        info["raw_obs"] = obs.copy()
 
         return obs, reward, terminated, truncated, info
 

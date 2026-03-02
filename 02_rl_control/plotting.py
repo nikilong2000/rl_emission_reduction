@@ -4,6 +4,11 @@ import numpy as np
 import pandas as pd
 from stable_baselines3.common.callbacks import BaseCallback
 
+try:
+    from . import config
+except ImportError:
+    import config
+
 
 class TrainingLivePlotCallback(BaseCallback):
     """
@@ -56,11 +61,15 @@ class TrainingLivePlotCallback(BaseCallback):
 
 def plot_evaluation(results, log_dir):
     """
-    Plot evaluation results: Speed, SOC, Emissions (NOx, CO).
+    Plot evaluation results: Speed, SOC, Emissions (NOx), Thermal State.
     """
     time_steps = np.arange(len(results["speed_actual"]))
 
-    fig, axes = plt.subplots(3, 1, figsize=(12, 12), sharex=False)
+    # Check if thermal data is available
+    has_thermal = any(name in results for name in config.THERMAL_OBS_NAMES)
+    n_plots = 4 if has_thermal else 3
+
+    fig, axes = plt.subplots(n_plots, 1, figsize=(12, 4 * n_plots), sharex=False)
 
     # 1. Speed
     axes[0].plot(
@@ -102,6 +111,30 @@ def plot_evaluation(results, log_dir):
     axes[2].set_ylim(-1, 30)
     axes[2].legend()
     axes[2].grid(True)
+
+    # 4. Thermal State (if available)
+    if has_thermal:
+        thermal_colors = ["#d62728", "#2ca02c", "#1f77b4"]  # red, green, blue
+        for j, name in enumerate(config.THERMAL_OBS_NAMES):
+            if name in results:
+                color = thermal_colors[j % len(thermal_colors)]
+                axes[3].plot(
+                    time_steps, results[name], label=name, color=color, alpha=0.8
+                )
+
+        # SCR light-off reference line
+        axes[3].axhline(
+            y=config.SCR_LIGHTOFF_K,
+            color="gray",
+            linestyle="--",
+            alpha=0.6,
+            label=f"SCR Light-off ({config.SCR_LIGHTOFF_K} K)",
+        )
+        axes[3].set_ylabel("Temperature (K)")
+        axes[3].set_xlabel("Time Step (0.5s)")
+        axes[3].set_title("Exhaust System Thermal State")
+        axes[3].legend(fontsize=8)
+        axes[3].grid(True)
 
     plt.tight_layout()
     plt.savefig(os.path.join(log_dir, "evaluation_results.png"))
