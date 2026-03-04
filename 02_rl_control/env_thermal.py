@@ -17,6 +17,13 @@ ICE model output indices (from NN_Application/config.txt):
 """
 
 import numpy as np
+from gymnasium import spaces
+
+try:
+    from . import config
+except ImportError:
+    import config
+
 
 try:
     from .env import EmissionControlEnv
@@ -25,17 +32,17 @@ except ImportError:
 
 
 # Physical temperature bounds [K] for normalization
-_T_GAS_EO_LOW  = 298.0
-_T_GAS_EO_HIGH = 1200.0
-_T_SUB_DPF_LOW  = 298.0
-_T_SUB_DPF_HIGH = 1000.0
-_T_GAS_TP_LOW  = 298.0
-_T_GAS_TP_HIGH = 900.0
+_T_GAS_EO_LOW = 290.0  # WLTC min = 296.57
+_T_GAS_EO_HIGH = 770.0  # WLTC_high max = 749.36
+_T_SUB_DPF_LOW = 290.0  # WLTC min = 297.98
+_T_SUB_DPF_HIGH = 640.0  # WLTC_high max = 617.54
+_T_GAS_TP_LOW = 290.0  # WLTC min = 297.91
+_T_GAS_TP_HIGH = 590.0  # WLTC_high max = 570.81
 
 # ICE model output indices for the three selected thermal variables
-_IDX_T_GAS_EO  = 5
+_IDX_T_GAS_EO = 5
 _IDX_T_SUB_DPF = 12
-_IDX_T_GAS_TP  = 15
+_IDX_T_GAS_TP = 15
 
 
 class EmissionControlEnvThermal(EmissionControlEnv):
@@ -46,7 +53,7 @@ class EmissionControlEnvThermal(EmissionControlEnv):
 
     Observation space (10 dimensions):
       [0] Car_Speed_kmph   — vehicle speed
-      [1] Speed_Error      — target − current speed
+      [1] Speed_Error      — target - current speed
       [2] SOC              — battery state-of-charge
       [3] ICE_Torque_Nm    — engine torque
       [4] NOx_tp_gps       — tailpipe NOx emission rate
@@ -61,37 +68,54 @@ class EmissionControlEnvThermal(EmissionControlEnv):
         super().__init__(render_mode=render_mode)
 
         # Extend obs bounds with the three thermal variables
-        self.obs_low  = np.append(self.obs_low,  [_T_GAS_EO_LOW,  _T_SUB_DPF_LOW,  _T_GAS_TP_LOW ]).astype(np.float32)
-        self.obs_high = np.append(self.obs_high, [_T_GAS_EO_HIGH, _T_SUB_DPF_HIGH, _T_GAS_TP_HIGH]).astype(np.float32)
+        self.obs_low = np.append(
+            self.obs_low, [_T_GAS_EO_LOW, _T_SUB_DPF_LOW, _T_GAS_TP_LOW]
+        ).astype(np.float32)
+        self.obs_high = np.append(
+            self.obs_high, [_T_GAS_EO_HIGH, _T_SUB_DPF_HIGH, _T_GAS_TP_HIGH]
+        ).astype(np.float32)
 
-        import gymnasium as gym
-        from gymnasium import spaces
         self.observation_space = spaces.Box(
-            low=-1.0, high=1.0, shape=(10,), dtype=np.float32
+            low=self.obs_low, high=self.obs_high, dtype=np.float32
         )
 
         # Thermal state (K), initialised to ambient temperature
-        self.last_t_gas_eo  = 298.0
+        self.last_t_gas_eo = 298.0
         self.last_t_sub_dpf = 298.0
-        self.last_t_gas_tp  = 298.0
+        self.last_t_gas_tp = 298.0
 
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
 
-    def _build_raw_obs(self, car_speed, speed_error, soc, ice_torque,
-                       nox_tp, engine_on, soc_error,
-                       t_gas_eo, t_sub_dpf, t_gas_tp):
+    def _build_raw_obs(
+        self,
+        car_speed,
+        speed_error,
+        soc,
+        ice_torque,
+        nox_tp,
+        engine_on,
+        soc_error,
+        t_gas_eo,
+        t_sub_dpf,
+        t_gas_tp,
+    ):
         return np.array(
-            [car_speed, speed_error, soc, ice_torque, nox_tp,
-             float(engine_on), soc_error,
-             t_gas_eo, t_sub_dpf, t_gas_tp],
+            [
+                car_speed,
+                speed_error,
+                soc,
+                ice_torque,
+                nox_tp,
+                float(engine_on),
+                soc_error,
+                t_gas_eo,
+                t_sub_dpf,
+                t_gas_tp,
+            ],
             dtype=np.float32,
         )
-
-    def _normalize(self, raw_obs):
-        obs = 2.0 * (raw_obs - self.obs_low) / (self.obs_high - self.obs_low) - 1.0
-        return np.clip(obs, -1.0, 1.0)
 
     # ------------------------------------------------------------------
     # Gym interface
@@ -101,17 +125,16 @@ class EmissionControlEnvThermal(EmissionControlEnv):
         obs, info = super().reset(seed=seed, options=options)
 
         # Reset thermal state
-        self.last_t_gas_eo  = 298.0
+        self.last_t_gas_eo = 298.0
         self.last_t_sub_dpf = 298.0
-        self.last_t_gas_tp  = 298.0
+        self.last_t_gas_tp = 298.0
 
         # Rebuild obs including thermal variables (all at ambient on reset)
-        raw_obs = np.append(info["raw_obs"],
-                            [self.last_t_gas_eo,
-                             self.last_t_sub_dpf,
-                             self.last_t_gas_tp]).astype(np.float32)
-        obs = self._normalize(raw_obs)
-        info["raw_obs"] = raw_obs
+        obs = np.append(
+            info["raw_obs"],
+            [self.last_t_gas_eo, self.last_t_sub_dpf, self.last_t_gas_tp],
+        ).astype(np.float32)
+        info["raw_obs"] = obs
         return obs, info
 
     def step(self, action):
@@ -126,10 +149,10 @@ class EmissionControlEnvThermal(EmissionControlEnv):
             self.action_max - self.action_min
         )
         engine_state_req = scaled_action[0]
-        ice_speed_rpm    = scaled_action[1]
-        em2_torque_nm    = scaled_action[2]
-        fuel_mg          = scaled_action[3]
-        brake_perc       = scaled_action[4]
+        ice_speed_rpm = scaled_action[1]
+        em2_torque_nm = scaled_action[2]
+        fuel_mg = scaled_action[3]
+        brake_perc = scaled_action[4]
 
         engine_on = engine_state_req >= 0.0
         if not engine_on:
@@ -149,78 +172,66 @@ class EmissionControlEnvThermal(EmissionControlEnv):
         )
 
         # 3. ICE prediction (single call — advances LSTM state once)
-        ice_inputs    = np.array([[ice_speed_rpm, fuel_mg, t_amb, p_amb]])
+        ice_inputs = np.array([[ice_speed_rpm, fuel_mg, t_amb, p_amb]])
         ice_in_scaled = self.ice_in_scaler.transform(ice_inputs).reshape(1, 1, -1)
         ice_pred_scaled = self.ice_predict_main(ice_in_scaled)
         ice_pred = self.ice_out_scaler.inverse_transform(ice_pred_scaled.numpy()[0])
 
         ice_torque = ice_pred[0][0]
-        nox_tp     = ice_pred[0][6]
+        nox_tp = ice_pred[0][6]
 
         # Extract thermal variables from the full ICE output
-        if engine_on:
-            t_gas_eo  = float(ice_pred[0][_IDX_T_GAS_EO])
-            t_sub_dpf = float(ice_pred[0][_IDX_T_SUB_DPF])
-            t_gas_tp  = float(ice_pred[0][_IDX_T_GAS_TP])
-        else:
-            # Engine off: exponential decay toward ambient (~0.5% per second)
-            alpha = 0.995
-            t_gas_eo  = alpha * self.last_t_gas_eo  + (1.0 - alpha) * t_amb
-            t_sub_dpf = alpha * self.last_t_sub_dpf + (1.0 - alpha) * t_amb
-            t_gas_tp  = alpha * self.last_t_gas_tp  + (1.0 - alpha) * t_amb
+        t_gas_eo = float(ice_pred[0][_IDX_T_GAS_EO])
+        t_sub_dpf = float(ice_pred[0][_IDX_T_SUB_DPF])
+        t_gas_tp = float(ice_pred[0][_IDX_T_GAS_TP])
 
         # 4. Drivetrain prediction
-        pg_inputs    = np.array([[ice_speed_rpm, ice_torque, em2_torque_nm, brake_perc]])
+        pg_inputs = np.array([[ice_speed_rpm, ice_torque, em2_torque_nm, brake_perc]])
         pg_in_scaled = self.pg_in_scaler.transform(pg_inputs).reshape(1, 1, -1)
         pg_pred_scaled = self.pg_predict_main(pg_in_scaled)
         pg_pred = self.pg_out_scaler.inverse_transform(pg_pred_scaled.numpy()[0])
 
         car_speed = pg_pred[0][0]
-        soc       = pg_pred[0][1]
+        soc = pg_pred[0][1]
 
         # 5. Reward (identical to base class)
-        try:
-            from . import config
-        except ImportError:
-            import config
+        target_speed = self.df.loc[self.current_step, self.target_col_name()]
+        speed_error = abs(target_speed - car_speed)
+        soc_error = abs(soc - self.initial_soc)
+        soc_error_squared = (soc - self.initial_soc) ** 2
 
-        target_speed       = self.df.loc[self.current_step, self.target_col_name()]
-        speed_error        = abs(target_speed - car_speed)
-        soc_error          = abs(soc - self.initial_soc)
-        soc_error_squared  = (soc - self.initial_soc) ** 2
+        norm_speed = 50.0
+        norm_emission = 0.14
+        norm_fuel = 70.0
+        norm_brake = 100.0
 
-        norm_speed    = 50.0
-        norm_emission = 0.1
-        norm_fuel     = 70.0
-        norm_brake    = 100.0
+        safe_speed_penalty = min(speed_error / norm_speed, 1.0)
+        safe_emission_penalty = min(nox_tp / norm_emission, 1.0)
 
-        safe_speed_penalty    = min(speed_error / norm_speed,    1.0)
-        safe_emission_penalty = min(nox_tp      / norm_emission, 1.0)
-
-        reward  = 0.0
-        reward -= config.W_SPEED    * safe_speed_penalty
+        reward = 0.0
+        reward -= config.W_SPEED * safe_speed_penalty
         reward -= config.W_EMISSION * safe_emission_penalty
-        reward -= config.W_FUEL     * (fuel_mg   / norm_fuel)
-        reward -= config.W_BRAKE    * (brake_perc / norm_brake)
-        reward -= config.W_SOC      * soc_error
+        reward -= config.W_FUEL * (fuel_mg / norm_fuel)
+        reward -= config.W_BRAKE * (brake_perc / norm_brake)
+        reward -= config.W_SOC * soc_error
         reward -= config.W_SOC_SQUARED * soc_error_squared
 
         if engine_on and not self.last_engine_on:
             reward -= config.W_FLICKER
 
         # 6. Update state
-        self.current_step      += 1
-        self.last_ice_torque    = ice_torque
-        self.last_car_speed     = car_speed
-        self.last_soc           = soc
-        self.last_nox           = nox_tp
-        self.last_engine_on     = engine_on
-        self.last_t_gas_eo      = t_gas_eo
-        self.last_t_sub_dpf     = t_sub_dpf
-        self.last_t_gas_tp      = t_gas_tp
+        self.current_step += 1
+        self.last_ice_torque = ice_torque
+        self.last_car_speed = car_speed
+        self.last_soc = soc
+        self.last_nox = nox_tp
+        self.last_engine_on = engine_on
+        self.last_t_gas_eo = t_gas_eo
+        self.last_t_sub_dpf = t_sub_dpf
+        self.last_t_gas_tp = t_gas_tp
 
         terminated = False
-        truncated  = False
+        truncated = False
         if self.current_step >= self.max_steps - 1:
             terminated = True
 
@@ -232,27 +243,33 @@ class EmissionControlEnvThermal(EmissionControlEnv):
         next_speed_error = next_target_speed - car_speed
         soc_error_signed = soc - self.initial_soc
 
-        raw_obs = self._build_raw_obs(
-            car_speed, next_speed_error, soc, ice_torque, nox_tp,
-            engine_on, soc_error_signed,
-            t_gas_eo, t_sub_dpf, t_gas_tp,
+        obs = self._build_raw_obs(
+            car_speed,
+            next_speed_error,
+            soc,
+            ice_torque,
+            nox_tp,
+            engine_on,
+            soc_error_signed,
+            t_gas_eo,
+            t_sub_dpf,
+            t_gas_tp,
         )
-        obs = self._normalize(raw_obs)
 
         info = {
-            "time_s":       self.df.loc[self.current_step, self.col_map["time"]],
-            "speed_error":  speed_error,
-            "nox":          nox_tp,
-            "fuel":         fuel_mg,
-            "engine_on":    engine_on,
-            "ice_torque":   ice_torque,
+            "time_s": self.df.loc[self.current_step, self.col_map["time"]],
+            "speed_error": speed_error,
+            "nox": nox_tp,
+            "fuel": fuel_mg,
+            "engine_on": engine_on,
+            "ice_torque": ice_torque,
             "ice_speed_rpm": ice_speed_rpm,
             "em2_torque_nm": em2_torque_nm,
-            "brake_perc":   brake_perc,
-            "raw_obs":      raw_obs,
-            "t_gas_eo_K":   t_gas_eo,
-            "t_sub_dpf_K":  t_sub_dpf,
-            "t_gas_tp_K":   t_gas_tp,
+            "brake_perc": brake_perc,
+            "raw_obs": obs,
+            "t_gas_eo_K": t_gas_eo,
+            "t_sub_dpf_K": t_sub_dpf,
+            "t_gas_tp_K": t_gas_tp,
         }
 
         return obs, reward, terminated, truncated, info

@@ -30,4 +30,4 @@ export PATH="$PTXAS_DIR:$PATH"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # LSTMs (TF/Keras) run on GPU; PPO agent (SB3/PyTorch) runs on CPU
-exec "$VENV/bin/python" "$SCRIPT_DIR/train_ppo.py" --agent_device cpu "$@"
+exec "$VENV/bin/python" "$SCRIPT_DIR/models/ppo/train_ppo.py" --agent_device cpu "$@"

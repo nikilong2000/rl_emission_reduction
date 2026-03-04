@@ -242,7 +242,7 @@ class EmissionControlEnv(gym.Env):
 
         # Normalization factors to bring terms roughly into [0, 1] range
         norm_speed = 50.0  # Max expected practical speed error (km/h)
-        norm_emission = 0.1  # Typical high combined tailpipe emissions (g/s)
+        norm_emission = 0.14  # Typical high combined tailpipe emissions (g/s)
         norm_fuel = 70.0  # Max fuel injection per step from config (mg)
         norm_brake = 100.0  # Max brake percentage bounds (%)
         norm_soc = 0.3  # Typical maximum allowed SOC drift scale

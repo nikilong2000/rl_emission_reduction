@@ -60,7 +60,16 @@ def plot_evaluation(results, log_dir):
     """
     time_steps = np.arange(len(results["speed_actual"]))
 
-    fig, axes = plt.subplots(3, 1, figsize=(12, 12), sharex=False)
+    try:
+        from . import config
+    except ImportError:
+        import config
+
+    has_thermals = "T_gas_eo_K" in results
+
+    fig, axes = plt.subplots(
+        4 if has_thermals else 3, 1, figsize=(12, 12), sharex=False
+    )
 
     # 1. Speed
     axes[0].plot(
@@ -97,11 +106,49 @@ def plot_evaluation(results, log_dir):
     nox_mg = np.array(results["nox"]) * 0.5 * 1000.0
     axes[2].plot(time_steps, nox_mg, label="NOx (Tailpipe)", color="orange", alpha=0.9)
     axes[2].set_ylabel("NOx (mg)")
-    axes[2].set_xlabel("Time Step (0.5s)")
+    if not has_thermals:
+        axes[2].set_xlabel("Time Step (0.5s)")
     axes[2].set_title("NOx Emissions per Step (mg)")
     axes[2].set_ylim(-1, 30)
     axes[2].legend()
     axes[2].grid(True)
+
+    # 4. Thermals
+    if has_thermals:
+        cfg = config  # imported globally in planning module
+        axes[3].plot(
+            time_steps,
+            results["T_gas_eo_K"],
+            label="T Engine Out",
+            color="red",
+            linestyle="--",
+        )
+        axes[3].plot(
+            time_steps,
+            results["T_Sub_DPF_K"],
+            label="T DPF Substrate",
+            color="darkorange",
+            linestyle="-",
+        )
+        axes[3].plot(
+            time_steps,
+            results["T_gas_tp_K"],
+            label="T Tailpipe",
+            color="gold",
+            linestyle=":",
+        )
+        axes[3].axhline(
+            y=cfg.SCR_LIGHTOFF_K,
+            color="black",
+            linestyle="--",
+            label=f"SCR Light-off ({cfg.SCR_LIGHTOFF_K}K)",
+            linewidth=1,
+        )
+        axes[3].set_ylabel("Temp (K)")
+        axes[3].set_xlabel("Time Step (0.5s)")
+        axes[3].set_title("Aftertreatment Thermodynamics")
+        axes[3].legend()
+        axes[3].grid(True)
 
     plt.tight_layout()
     plt.savefig(os.path.join(log_dir, "evaluation_results.png"))
