@@ -1,0 +1,32 @@
+{
+    "model_path": "/home/usuaris.new/niklas.long.schiefelbein/rl_emission_reduction/02_rl_control/logs/run_20260227_235103/ppo_emission_final",
+    "configuration": {
+        "learning_rate": 0.0003,
+        "n_steps": 2048,
+        "batch_size": 256,
+        "n_epochs": 10,
+        "gamma": 0.99,
+        "gae_lambda": 0.95,
+        "clip_range": 0.2,
+        "total_timesteps": 400000,
+        "w_speed": 1.0,
+        "w_emission": 0.8,
+        "w_fuel": 0.6,
+        "w_brake": 0.45,
+        "w_soc": 0.3,
+        "continued_run": false,
+        "continued_from": null
+    },
+    "continued_run": false,
+    "continued_from": null,
+    "total_reward": -11342.186798258092,
+    "total_fuel_g": 0.0,
+    "total_nox_g": -0.008513153530657291,
+    "total_co_g": 0.02211013063788414,
+    "mae_speed_kmph": 15.854862213134766,
+    "rmse_speed_kmph": 19.72034454345703,
+    "initial_soc": 0.699999988079071,
+    "final_soc": 0.11995169520378113,
+    "delta_soc": -0.5800483226776123,
+    "custom_notes": ""
+}
