@@ -1,0 +1,14 @@
+{
+    "model_path": "/home/usuaris.new/niklas.long.schiefelbein/rl_emission_reduction/02_rl_control/logs/sac/run_20260304_123822/sac_emission_final.zip",
+    "continued_run": false,
+    "continued_from": null,
+    "total_reward": -782.031982421875,
+    "total_fuel_g": 106.60184426927566,
+    "total_nox_g": 2.968200445175171,
+    "mae_speed_kmph": 3.6962594985961914,
+    "rmse_speed_kmph": 5.41229248046875,
+    "initial_soc": 0.699999988079071,
+    "final_soc": 0.699999988079071,
+    "delta_soc": 0.0,
+    "custom_notes": ""
+}

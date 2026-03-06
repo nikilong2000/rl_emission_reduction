@@ -8,7 +8,6 @@ import pandas as pd
 from stable_baselines3 import TD3
 import warnings
 
-# Suppress sklearn warnings about feature names
 warnings.filterwarnings(
     "ignore",
     message="X does not have valid feature names, but MinMaxScaler was fitted with feature names",
@@ -19,10 +18,12 @@ sys.path.append(os.path.dirname(os.path.dirname(current_dir)))
 
 try:
     from ...env import EmissionControlEnv
-    from ...plotting import TrainingLivePlotCallback, plot_evaluation, plot_actions
+    from ...env_thermal import EmissionControlEnvThermal
+    from ...plotting import plot_evaluation, plot_actions
 except ImportError:
     from env import EmissionControlEnv
-    from plotting import TrainingLivePlotCallback, plot_evaluation, plot_actions
+    from env_thermal import EmissionControlEnvThermal
+    from plotting import plot_evaluation, plot_actions
 
 
 def calculate_emissions_per_km(results, log_dir):
@@ -33,7 +34,6 @@ def calculate_emissions_per_km(results, log_dir):
 
     distance_km = 0.0
     accumulated_nox_mg = 0.0
-
     km_counter = 1
 
     out_path = os.path.join(log_dir, "emissions_per_km.txt")
@@ -42,8 +42,6 @@ def calculate_emissions_per_km(results, log_dir):
 
         for v, nox in zip(speed_actual, nox_gs):
             dist_step = v * dt / 3600.0
-
-            # Emissions in mg for this step = rate (g/s) * dt (s) * 1000 (mg/g)
             nox_step_mg = nox * dt * 1000.0
 
             distance_km += dist_step
@@ -51,35 +49,27 @@ def calculate_emissions_per_km(results, log_dir):
 
             if distance_km >= 1.0:
                 nox_pass = accumulated_nox_mg <= 80.0
-
                 f.write(f"{km_counter}, {accumulated_nox_mg:.2f}, {nox_pass}\n")
-
-                # Reset accumulators
                 distance_km = 0.0
                 accumulated_nox_mg = 0.0
                 km_counter += 1
 
-        # Handle the remaining partial kilometer
-        if distance_km > 0.1:  # Only report if at least 100m driven
+        if distance_km > 0.1:
             nox_per_km = accumulated_nox_mg / distance_km
             nox_pass = nox_per_km <= 80.0
             f.write(f"Partial ({distance_km:.2f} km), {nox_per_km:.2f}, {nox_pass}\n")
 
 
-def evaluate_model(model_path, eval_log_dir=None, train_config=None):
-    # Validate model path (Stable-Baselines3 usually adds .zip automatically, so we check both)
+def evaluate_model(model_path, eval_log_dir=None, train_config=None, use_thermal=False):
     if not (os.path.exists(model_path) or os.path.exists(model_path + ".zip")):
         print(f"Error: Model file '{model_path}' not found.")
         sys.exit(1)
 
-    print(f"Loading model from {model_path}...")
+    print(f"Loading TD3 model from {model_path}...")
     model = TD3.load(model_path)
 
     if eval_log_dir is None:
-        # Create Log Directory for evaluation
-        base_log_dir = os.path.join(
-            os.path.dirname(os.path.dirname(current_dir)), "logs", "td3"
-        )
+        base_log_dir = os.path.join(current_dir, "logs")
         run_name = datetime.datetime.now().strftime("eval_%Y%m%d_%H%M%S")
         log_dir = os.path.join(base_log_dir, run_name)
         os.makedirs(log_dir, exist_ok=True)
@@ -89,11 +79,8 @@ def evaluate_model(model_path, eval_log_dir=None, train_config=None):
 
     from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
 
-    # Initialize environment
-    print("Evaluating Model...")
-
     def make_env():
-        return EmissionControlEnv()
+        return EmissionControlEnvThermal() if use_thermal else EmissionControlEnv()
 
     env = DummyVecEnv([make_env])
 
@@ -105,15 +92,12 @@ def evaluate_model(model_path, eval_log_dir=None, train_config=None):
         env.norm_reward = False
         print(f"Loaded VecNormalize stats from {vec_norm_path}")
     else:
-        print(
-            "Warning: Could not find vec_normalize.pkl. Evaluation might be inaccurate."
-        )
+        print("Warning: Could not find vec_normalize.pkl. Evaluation might be inaccurate.")
 
     obs = env.reset()
     done = False
     total_reward = 0
 
-    # Data collection for plotting
     eval_results = {
         "speed_actual": [],
         "speed_target": [],
@@ -129,11 +113,8 @@ def evaluate_model(model_path, eval_log_dir=None, train_config=None):
 
     # Store initial state
     raw_obs = env.get_original_obs()[0]
-
     eval_results["speed_actual"].append(raw_obs[0])
-    eval_results["speed_target"].append(
-        raw_obs[0] + raw_obs[1]
-    )  # Target Speed = Car_Speed + Speed_Error
+    eval_results["speed_target"].append(raw_obs[0] + raw_obs[1])
     eval_results["soc"].append(raw_obs[2])
     eval_results["ice_torque"].append(raw_obs[3])
     eval_results["nox"].append(raw_obs[4])
@@ -153,9 +134,7 @@ def evaluate_model(model_path, eval_log_dir=None, train_config=None):
         raw_obs = env.get_original_obs()[0]
 
         eval_results["speed_actual"].append(raw_obs[0])
-        eval_results["speed_target"].append(
-            raw_obs[0] + raw_obs[1]
-        )  # Target Speed = Car_Speed + Speed_Error
+        eval_results["speed_target"].append(raw_obs[0] + raw_obs[1])
         eval_results["soc"].append(raw_obs[2])
         eval_results["ice_torque"].append(raw_obs[3])
         eval_results["nox"].append(raw_obs[4])
@@ -167,7 +146,7 @@ def evaluate_model(model_path, eval_log_dir=None, train_config=None):
 
     print(f"Evaluation finished. Total Reward: {total_reward}")
 
-    # --- Calculate Metrics ---
+    # --- Metrics ---
     speed_actual = np.array(eval_results["speed_actual"])
     speed_target = np.array(eval_results["speed_target"])
     fuel_mg = np.array(eval_results["fuel"])
@@ -186,13 +165,10 @@ def evaluate_model(model_path, eval_log_dir=None, train_config=None):
     final_soc = soc[-1]
     delta_soc = final_soc - initial_soc
 
-    metrics = {
-        "model_path": model_path,
-    }
+    metrics = {"model_path": model_path}
 
     continued_run = False
     continued_from = None
-
     if train_config is not None:
         metrics["configuration"] = train_config
         continued_run = train_config.get("continued_run", False)
@@ -234,7 +210,13 @@ if __name__ == "__main__":
     parser.add_argument(
         "model_path", type=str, help="Path to the trained TD3 model (.zip)"
     )
+    parser.add_argument(
+        "--use_thermal",
+        action="store_true",
+        default=False,
+        help="Use EmissionControlEnvThermal (10-dim obs with aftertreatment temps)",
+    )
     args = parser.parse_args()
 
     model_dir = os.path.dirname(os.path.abspath(args.model_path))
-    evaluate_model(args.model_path, eval_log_dir=model_dir)
+    evaluate_model(args.model_path, eval_log_dir=model_dir, use_thermal=args.use_thermal)

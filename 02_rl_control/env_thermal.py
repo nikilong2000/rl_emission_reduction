@@ -69,10 +69,10 @@ class EmissionControlEnvThermal(EmissionControlEnv):
 
         # Extend obs bounds with the three thermal variables
         self.obs_low = np.append(
-            self.obs_low, [_T_GAS_EO_LOW, _T_SUB_DPF_LOW, _T_GAS_TP_LOW]
+            self.observation_space.low, [_T_GAS_EO_LOW, _T_SUB_DPF_LOW, _T_GAS_TP_LOW]
         ).astype(np.float32)
         self.obs_high = np.append(
-            self.obs_high, [_T_GAS_EO_HIGH, _T_SUB_DPF_HIGH, _T_GAS_TP_HIGH]
+            self.observation_space.high, [_T_GAS_EO_HIGH, _T_SUB_DPF_HIGH, _T_GAS_TP_HIGH]
         ).astype(np.float32)
 
         self.observation_space = spaces.Box(
@@ -131,10 +131,9 @@ class EmissionControlEnvThermal(EmissionControlEnv):
 
         # Rebuild obs including thermal variables (all at ambient on reset)
         obs = np.append(
-            info["raw_obs"],
+            obs,
             [self.last_t_gas_eo, self.last_t_sub_dpf, self.last_t_gas_tp],
         ).astype(np.float32)
-        info["raw_obs"] = obs
         return obs, info
 
     def step(self, action):

@@ -40,7 +40,7 @@ USE_SDE = False
 SDE_SAMPLE_FREQ = -1  # -1 = sample new noise at the start of each rollout
 
 # Training duration
-TOTAL_TIMESTEPS = 800_000
+TOTAL_TIMESTEPS = 400_000
 
 # Reward Weights
 W_SPEED = 1.0

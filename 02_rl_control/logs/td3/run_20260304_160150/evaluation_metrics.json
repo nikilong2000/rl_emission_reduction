@@ -1,0 +1,14 @@
+{
+    "model_path": "/home/usuaris.new/niklas.long.schiefelbein/rl_emission_reduction/02_rl_control/logs/td3/run_20260304_160150/td3_emission_model_900000_steps.zip",
+    "continued_run": false,
+    "continued_from": null,
+    "total_reward": -608.9405517578125,
+    "total_fuel_g": 125.34930907154083,
+    "total_nox_g": 2.5317251682281494,
+    "mae_speed_kmph": 3.350754737854004,
+    "rmse_speed_kmph": 4.163944244384766,
+    "initial_soc": 0.699999988079071,
+    "final_soc": 0.699999988079071,
+    "delta_soc": 0.0,
+    "custom_notes": ""
+}
