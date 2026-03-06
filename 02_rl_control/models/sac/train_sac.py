@@ -1,4 +1,5 @@
 import os
+import json
 import datetime
 import numpy as np
 import warnings
@@ -26,6 +27,7 @@ try:
     from .eval_sac import evaluate_model
     from ...utils import safety_utils
     from ...utils.platform_utils import configure_environment, configure_tf_devices
+    from ...utils.checkpoint_utils import VecNormalizeCheckpointCallback
 except ImportError:
     from env import EmissionControlEnv
     from env_thermal import EmissionControlEnvThermal
@@ -34,6 +36,7 @@ except ImportError:
     from eval_sac import evaluate_model
     from utils import safety_utils
     from utils.platform_utils import configure_environment, configure_tf_devices
+    from utils.checkpoint_utils import VecNormalizeCheckpointCallback
 
 
 def main(args):
@@ -157,10 +160,17 @@ def main(args):
         )
 
     # Callbacks
+    CHECKPOINT_FREQ = 100_000
     checkpoint_callback = CheckpointCallback(
-        save_freq=100_000,
+        save_freq=CHECKPOINT_FREQ,
         save_path=os.path.join(log_dir, "checkpoints"),
         name_prefix="sac_emission_model",
+    )
+    vec_normalize_checkpoint_callback = VecNormalizeCheckpointCallback(
+        save_freq=CHECKPOINT_FREQ,
+        save_path=os.path.join(log_dir, "checkpoints"),
+        name_prefix="sac_emission_model",
+        vec_normalize=env,
     )
     plot_callback = TrainingLivePlotCallback(check_freq=1_000, log_dir=log_dir)
 
@@ -168,13 +178,15 @@ def main(args):
     print("Starting SAC Training...")
     model.learn(
         total_timesteps=config.TOTAL_TIMESTEPS,
-        callback=[checkpoint_callback, plot_callback],
+        callback=[checkpoint_callback, vec_normalize_checkpoint_callback, plot_callback],
     )
     print("Training finished.")
 
     # Save
     model.save(os.path.join(log_dir, "sac_emission_final"))
     env.save(os.path.join(log_dir, "vec_normalize.pkl"))
+    with open(os.path.join(log_dir, "train_config.json"), "w") as f:
+        json.dump(train_config, f, indent=4)
     print(f"Model and VecNormalize stats saved to {log_dir}")
 
     # Evaluate

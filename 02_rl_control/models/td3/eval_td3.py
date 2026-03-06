@@ -85,11 +85,20 @@ def evaluate_model(model_path, eval_log_dir=None, train_config=None, use_thermal
     env = DummyVecEnv([make_env])
 
     model_dir = os.path.dirname(os.path.abspath(model_path))
-    vec_norm_path = os.path.join(model_dir, "vec_normalize.pkl")
+    model_basename = os.path.splitext(os.path.basename(model_path))[0]
+
+    vec_norm_path = os.path.join(model_dir, f"{model_basename}_vecnormalize.pkl")
+    if not os.path.exists(vec_norm_path):
+        vec_norm_path = os.path.join(model_dir, "vec_normalize.pkl")
+    if not os.path.exists(vec_norm_path):
+        vec_norm_path = os.path.join(os.path.dirname(model_dir), "vec_normalize.pkl")
+
+    vec_normalized = False
     if os.path.exists(vec_norm_path):
         env = VecNormalize.load(vec_norm_path, env)
         env.training = False
         env.norm_reward = False
+        vec_normalized = True
         print(f"Loaded VecNormalize stats from {vec_norm_path}")
     else:
         print("Warning: Could not find vec_normalize.pkl. Evaluation might be inaccurate.")
@@ -112,7 +121,7 @@ def evaluate_model(model_path, eval_log_dir=None, train_config=None, use_thermal
     }
 
     # Store initial state
-    raw_obs = env.get_original_obs()[0]
+    raw_obs = env.get_original_obs()[0] if vec_normalized else obs[0]
     eval_results["speed_actual"].append(raw_obs[0])
     eval_results["speed_target"].append(raw_obs[0] + raw_obs[1])
     eval_results["soc"].append(raw_obs[2])
@@ -131,7 +140,7 @@ def evaluate_model(model_path, eval_log_dir=None, train_config=None, use_thermal
         total_reward += rewards[0]
 
         i = infos[0]
-        raw_obs = env.get_original_obs()[0]
+        raw_obs = env.get_original_obs()[0] if vec_normalized else obs[0]
 
         eval_results["speed_actual"].append(raw_obs[0])
         eval_results["speed_target"].append(raw_obs[0] + raw_obs[1])
@@ -219,4 +228,13 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     model_dir = os.path.dirname(os.path.abspath(args.model_path))
-    evaluate_model(args.model_path, eval_log_dir=model_dir, use_thermal=args.use_thermal)
+    train_config = None
+    for search_dir in [model_dir, os.path.dirname(model_dir)]:
+        candidate = os.path.join(search_dir, "train_config.json")
+        if os.path.exists(candidate):
+            with open(candidate) as f:
+                train_config = json.load(f)
+            print(f"Loaded train config from {candidate}")
+            break
+
+    evaluate_model(args.model_path, eval_log_dir=model_dir, use_thermal=args.use_thermal, train_config=train_config)
