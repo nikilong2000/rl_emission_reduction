@@ -97,7 +97,7 @@ def evaluate_model(model_path, eval_log_dir=None, train_config=None, use_thermal
 
     def make_env():
         wltc_path = os.path.join(
-            os.path.dirname(os.path.dirname(current_dir)),
+            os.path.dirname(os.path.dirname(os.path.dirname(current_dir))),
             "internal_lstm_models",
             "NN_Application",
             "Input_data",
