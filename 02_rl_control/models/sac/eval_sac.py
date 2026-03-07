@@ -96,7 +96,18 @@ def evaluate_model(model_path, eval_log_dir=None, train_config=None, use_thermal
     from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
 
     def make_env():
-        return EmissionControlEnvThermal() if use_thermal else EmissionControlEnv()
+        wltc_path = os.path.join(
+            os.path.dirname(os.path.dirname(current_dir)),
+            "internal_lstm_models",
+            "NN_Application",
+            "Input_data",
+            "WLTC.csv",
+        )
+        return (
+            EmissionControlEnvThermal(dataset_path=wltc_path)
+            if use_thermal
+            else EmissionControlEnv(dataset_path=wltc_path)
+        )
 
     env = DummyVecEnv([make_env])
 
@@ -117,7 +128,9 @@ def evaluate_model(model_path, eval_log_dir=None, train_config=None, use_thermal
         vec_normalized = True
         print(f"Loaded VecNormalize stats from {vec_norm_path}")
     else:
-        print("Warning: Could not find vec_normalize.pkl. Evaluation might be inaccurate.")
+        print(
+            "Warning: Could not find vec_normalize.pkl. Evaluation might be inaccurate."
+        )
 
     obs = env.reset()
     done = False
@@ -139,7 +152,11 @@ def evaluate_model(model_path, eval_log_dir=None, train_config=None, use_thermal
     # Store initial state
     raw_obs = env.get_original_obs()[0] if vec_normalized else obs[0]
     eval_results["speed_actual"].append(raw_obs[0])
-    eval_results["speed_target"].append(raw_obs[0] + raw_obs[1])
+    eval_results["speed_target"].append(
+        infos[0].get("target_speed", raw_obs[0] + raw_obs[1])
+        if "infos" in locals()
+        else (raw_obs[0] + raw_obs[1])
+    )
     eval_results["soc"].append(raw_obs[2])
     eval_results["ice_torque"].append(raw_obs[3])
     eval_results["nox"].append(raw_obs[4])
@@ -159,7 +176,9 @@ def evaluate_model(model_path, eval_log_dir=None, train_config=None, use_thermal
         raw_obs = env.get_original_obs()[0] if vec_normalized else obs[0]
 
         eval_results["speed_actual"].append(raw_obs[0])
-        eval_results["speed_target"].append(raw_obs[0] + raw_obs[1])
+        eval_results["speed_target"].append(
+            i.get("target_speed", raw_obs[0] + raw_obs[1])
+        )
         eval_results["soc"].append(raw_obs[2])
         eval_results["ice_torque"].append(raw_obs[3])
         eval_results["nox"].append(raw_obs[4])
@@ -258,4 +277,9 @@ if __name__ == "__main__":
             print(f"Loaded train config from {candidate}")
             break
 
-    evaluate_model(args.model_path, eval_log_dir=model_dir, use_thermal=args.use_thermal, train_config=train_config)
+    evaluate_model(
+        args.model_path,
+        eval_log_dir=model_dir,
+        use_thermal=args.use_thermal,
+        train_config=train_config,
+    )

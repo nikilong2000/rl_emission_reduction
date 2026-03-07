@@ -20,20 +20,20 @@ class EmissionControlEnv(gym.Env):
 
     metadata = {"render_modes": ["human"]}
 
-    def __init__(self, render_mode=None):
+    def __init__(self, render_mode=None, dataset_path=None):
         super().__init__()
 
-        # Load Data
-        self.df = pd.read_csv(config.INPUT_DATA_PATH, delimiter=";", encoding="latin1")
-        if self.df.shape[1] <= 1:
-            self.df = pd.read_csv(
-                config.INPUT_DATA_PATH, delimiter=",", encoding="latin1"
-            )
+        self.dataset_path = dataset_path
 
-        # Clean column names
-        self.df.columns = [col.strip() for col in self.df.columns]
+        import glob
 
-        self.max_steps = len(self.df)
+        # Load Data Configuration
+        self.data_files = glob.glob(os.path.join(config.TRAIN_DATA_DIR, "*.csv"))
+        if not self.data_files:
+            raise ValueError(f"No CSV files found in {config.TRAIN_DATA_DIR}")
+
+        self.df = None
+        self.max_steps = 0
         self.current_step = 0
 
         # Load Models
@@ -103,6 +103,17 @@ class EmissionControlEnv(gym.Env):
         super().reset(seed=seed)
         self.current_step = 0
 
+        # Load random driving cycle or deterministic
+        import random
+
+        if self.dataset_path is not None:
+            chosen_file = self.dataset_path
+        else:
+            chosen_file = random.choice(self.data_files)
+
+        self.df = pd.read_csv(chosen_file)
+        self.max_steps = len(self.df)
+
         # Initialize Models (Reset States)
         # ICE Init
         # Initial outputs for ICE: 0, 0, 0, 0, 0, 298, ... (16 dims)
@@ -167,6 +178,7 @@ class EmissionControlEnv(gym.Env):
 
         info = {
             "time_s": self.df.loc[0, self.col_map["time"]],
+            "target_speed": target_speed,
         }
         return obs, info
 
@@ -303,6 +315,7 @@ class EmissionControlEnv(gym.Env):
 
         info = {
             "time_s": self.df.loc[self.current_step, self.col_map["time"]],
+            "target_speed": target_speed,
             "speed_error": speed_error,
             "nox": nox_tp,
             "fuel": fuel_mg,

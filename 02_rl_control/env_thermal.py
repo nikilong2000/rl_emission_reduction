@@ -64,15 +64,16 @@ class EmissionControlEnvThermal(EmissionControlEnv):
       [9] T_gas_tp_K       — exhaust gas temp at tailpipe    (PC3 representative)
     """
 
-    def __init__(self, render_mode=None):
-        super().__init__(render_mode=render_mode)
+    def __init__(self, render_mode=None, dataset_path=None):
+        super().__init__(render_mode=render_mode, dataset_path=dataset_path)
 
         # Extend obs bounds with the three thermal variables
         self.obs_low = np.append(
             self.observation_space.low, [_T_GAS_EO_LOW, _T_SUB_DPF_LOW, _T_GAS_TP_LOW]
         ).astype(np.float32)
         self.obs_high = np.append(
-            self.observation_space.high, [_T_GAS_EO_HIGH, _T_SUB_DPF_HIGH, _T_GAS_TP_HIGH]
+            self.observation_space.high,
+            [_T_GAS_EO_HIGH, _T_SUB_DPF_HIGH, _T_GAS_TP_HIGH],
         ).astype(np.float32)
 
         self.observation_space = spaces.Box(
@@ -257,6 +258,7 @@ class EmissionControlEnvThermal(EmissionControlEnv):
 
         info = {
             "time_s": self.df.loc[self.current_step, self.col_map["time"]],
+            "target_speed": target_speed,
             "speed_error": speed_error,
             "nox": nox_tp,
             "fuel": fuel_mg,

@@ -111,7 +111,14 @@ def evaluate_model(model_path, eval_log_dir=None, train_config=None):
     print("Evaluating Model...")
 
     def make_env():
-        return EmissionControlEnv()
+        wltc_path = os.path.join(
+            os.path.dirname(os.path.dirname(current_dir)),
+            "internal_lstm_models",
+            "NN_Application",
+            "Input_data",
+            "WLTC.csv",
+        )
+        return EmissionControlEnv(dataset_path=wltc_path)
 
     env = DummyVecEnv([make_env])
 
@@ -161,8 +168,14 @@ def evaluate_model(model_path, eval_log_dir=None, train_config=None):
 
     eval_results["speed_actual"].append(raw_obs[0])
     eval_results["speed_target"].append(
-        raw_obs[0] + raw_obs[1]
-    )  # Target Speed = Car_Speed + Speed_Error
+        i.get("target_speed", 0.0)
+        if "i" in locals()
+        else (
+            infos[0].get("target_speed", 0.0)
+            if "infos" in locals()
+            else (raw_obs[0] + raw_obs[1])
+        )
+    )
     eval_results["soc"].append(raw_obs[2])
     eval_results["ice_torque"].append(raw_obs[3])
     eval_results["nox"].append(raw_obs[4])
@@ -183,8 +196,8 @@ def evaluate_model(model_path, eval_log_dir=None, train_config=None):
 
         eval_results["speed_actual"].append(raw_obs[0])
         eval_results["speed_target"].append(
-            raw_obs[0] + raw_obs[1]
-        )  # Target Speed = Car_Speed + Speed_Error
+            i.get("target_speed", raw_obs[0] + raw_obs[1])
+        )
         eval_results["soc"].append(raw_obs[2])
         eval_results["ice_torque"].append(raw_obs[3])
         eval_results["nox"].append(raw_obs[4])

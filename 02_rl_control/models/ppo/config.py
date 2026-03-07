@@ -14,9 +14,7 @@ PG_MODEL_DIR = os.path.join(
 )
 
 # Data Paths
-INPUT_DATA_PATH = os.path.join(
-    PROJECT_ROOT, "internal_lstm_models/NN_Application/Input_data/WLTC.csv"
-)
+TRAIN_DATA_DIR = os.path.join(PROJECT_ROOT, "02_rl_control/data")
 
 ## DIRECTORIES END
 ############################
@@ -33,7 +31,7 @@ CLIP_RANGE = 0.2
 
 # Training Configuration
 # TOTAL_TIMESTEPS = 1600000
-TOTAL_TIMESTEPS = 400000
+TOTAL_TIMESTEPS = 1200000
 
 # Reward Weights
 W_SPEED = 1.0
