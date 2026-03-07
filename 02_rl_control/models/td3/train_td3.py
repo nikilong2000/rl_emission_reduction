@@ -23,7 +23,7 @@ from stable_baselines3.common.callbacks import CheckpointCallback
 try:
     from ...env import EmissionControlEnv
     from ...env_thermal import EmissionControlEnvThermal
-    from ...plotting import TrainingLivePlotCallback, plot_evaluation, plot_actions
+    from ...plotting import TrainingLivePlotCallback, plot_evaluation, plot_actions, ExplorationEntropyCallback
     from . import config
     from .eval_td3 import evaluate_model
     from ...utils import safety_utils
@@ -32,7 +32,7 @@ try:
 except ImportError:
     from env import EmissionControlEnv
     from env_thermal import EmissionControlEnvThermal
-    from plotting import TrainingLivePlotCallback, plot_evaluation, plot_actions
+    from plotting import TrainingLivePlotCallback, plot_evaluation, plot_actions, ExplorationEntropyCallback
     import config
     from eval_td3 import evaluate_model
     from utils import safety_utils
@@ -178,18 +178,18 @@ def main(args):
         vec_normalize=env,
     )
     plot_callback = TrainingLivePlotCallback(check_freq=1_000, log_dir=log_dir)
+    entropy_callback = ExplorationEntropyCallback(plot_freq=10, log_dir=log_dir)
 
     # Train
     print("Starting TD3 Training...")
     model.learn(
         total_timesteps=config.TOTAL_TIMESTEPS,
-        callback=[checkpoint_callback, vec_normalize_checkpoint_callback, plot_callback],
+        callback=[checkpoint_callback, vec_normalize_checkpoint_callback, plot_callback, entropy_callback],
     )
     print("Training finished.")
 
     # Save
     model.save(os.path.join(log_dir, "td3_emission_final"))
-    env.save(os.path.join(log_dir, "vec_normalize.pkl"))
     with open(os.path.join(log_dir, "train_config.json"), "w") as f:
         json.dump(train_config, f, indent=4)
     print(f"Model and VecNormalize stats saved to {log_dir}")

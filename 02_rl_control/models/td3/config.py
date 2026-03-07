@@ -34,7 +34,7 @@ TARGET_NOISE_CLIP = 0.5  # Clip bound for target-policy noise
 ACTION_NOISE_SIGMA = 0.1
 
 # Training duration
-TOTAL_TIMESTEPS = 1_200_000
+TOTAL_TIMESTEPS = 1_000_000
 
 # Reward Weights
 W_SPEED = 1.0

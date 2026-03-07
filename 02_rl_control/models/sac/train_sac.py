@@ -22,7 +22,7 @@ from stable_baselines3.common.callbacks import CheckpointCallback
 try:
     from ...env import EmissionControlEnv
     from ...env_thermal import EmissionControlEnvThermal
-    from ...plotting import TrainingLivePlotCallback
+    from ...plotting import TrainingLivePlotCallback, ExplorationEntropyCallback
     from . import config
     from .eval_sac import evaluate_model
     from ...utils import safety_utils
@@ -31,7 +31,7 @@ try:
 except ImportError:
     from env import EmissionControlEnv
     from env_thermal import EmissionControlEnvThermal
-    from plotting import TrainingLivePlotCallback
+    from plotting import TrainingLivePlotCallback, ExplorationEntropyCallback
     import config
     from eval_sac import evaluate_model
     from utils import safety_utils
@@ -173,12 +173,13 @@ def main(args):
         vec_normalize=env,
     )
     plot_callback = TrainingLivePlotCallback(check_freq=1_000, log_dir=log_dir)
+    entropy_callback = ExplorationEntropyCallback(plot_freq=10, log_dir=log_dir)
 
     # Train
     print("Starting SAC Training...")
     model.learn(
         total_timesteps=config.TOTAL_TIMESTEPS,
-        callback=[checkpoint_callback, vec_normalize_checkpoint_callback, plot_callback],
+        callback=[checkpoint_callback, vec_normalize_checkpoint_callback, plot_callback, entropy_callback],
     )
     print("Training finished.")
 

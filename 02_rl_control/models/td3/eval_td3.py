@@ -19,11 +19,27 @@ sys.path.append(os.path.dirname(os.path.dirname(current_dir)))
 try:
     from ...env import EmissionControlEnv
     from ...env_thermal import EmissionControlEnvThermal
-    from ...plotting import plot_evaluation, plot_actions
+    from ...plotting import (
+        plot_evaluation,
+        plot_actions,
+        plot_state_visitation_1d,
+        plot_state_visitation_2d,
+        plot_action_distribution,
+        plot_state_action_occupancy,
+        plot_temporal_state_heatmap,
+    )
 except ImportError:
     from env import EmissionControlEnv
     from env_thermal import EmissionControlEnvThermal
-    from plotting import plot_evaluation, plot_actions
+    from plotting import (
+        plot_evaluation,
+        plot_actions,
+        plot_state_visitation_1d,
+        plot_state_visitation_2d,
+        plot_action_distribution,
+        plot_state_action_occupancy,
+        plot_temporal_state_heatmap,
+    )
 
 
 def calculate_emissions_per_km(results, log_dir):
@@ -212,6 +228,11 @@ def evaluate_model(model_path, eval_log_dir=None, train_config=None, use_thermal
     calculate_emissions_per_km(eval_results, log_dir)
     plot_evaluation(eval_results, log_dir)
     plot_actions(eval_results, log_dir, window_start=1, window_size=3600)
+    plot_state_visitation_1d([eval_results], ["TD3"], log_dir)
+    plot_state_visitation_2d(eval_results, log_dir)
+    plot_action_distribution([eval_results], ["TD3"], log_dir)
+    plot_state_action_occupancy(eval_results, log_dir)
+    plot_temporal_state_heatmap(eval_results, log_dir)
 
 
 if __name__ == "__main__":
