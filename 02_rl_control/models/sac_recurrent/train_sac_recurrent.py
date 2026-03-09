@@ -5,6 +5,9 @@ import datetime
 import warnings
 import argparse
 import numpy as np
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
 
 warnings.filterwarnings(
     "ignore",
@@ -62,6 +65,153 @@ def env_creator(env_config):
         ),
         observation_space=base_env.observation_space,
     )
+
+
+# ------------------------------------------------------------------ #
+#  Live training plots (equivalent to SB3 callbacks)                  #
+# ------------------------------------------------------------------ #
+
+def plot_training_progress(history, log_dir):
+    """Plot reward curve (mirrors TrainingLivePlotCallback)."""
+    ts = history["timesteps"]
+    rews = history["rewards"]
+    if len(ts) < 1:
+        return
+    fig, ax = plt.subplots(figsize=(10, 5))
+    ax.plot(ts, rews, label="Mean Episode Reward")
+    ax.set_xlabel("Timesteps")
+    ax.set_ylabel("Reward")
+    ax.set_title("Training Progress")
+    ax.legend()
+    ax.grid(True)
+    fig.savefig(os.path.join(log_dir, "training_progress.png"), dpi=120)
+    plt.close(fig)
+
+
+def plot_sac_losses(history, log_dir):
+    """Plot critic / actor losses and alpha over training."""
+    ts = history["loss_timesteps"]
+    if len(ts) < 1:
+        return
+
+    fig, axes = plt.subplots(3, 1, figsize=(10, 10), sharex=True)
+
+    # Critic loss
+    axes[0].plot(ts, history["critic_loss"], color="tab:red", label="Critic Loss")
+    axes[0].set_ylabel("Critic Loss")
+    axes[0].legend()
+    axes[0].grid(True, alpha=0.3)
+
+    # Actor loss
+    axes[1].plot(ts, history["actor_loss"], color="tab:blue", label="Actor Loss")
+    axes[1].set_ylabel("Actor Loss")
+    axes[1].legend()
+    axes[1].grid(True, alpha=0.3)
+
+    # Alpha (entropy coefficient)
+    axes[2].plot(ts, history["alpha"], color="tab:green", label="Alpha (entropy coeff)")
+    axes[2].set_xlabel("Timesteps")
+    axes[2].set_ylabel("Alpha")
+    axes[2].legend()
+    axes[2].grid(True, alpha=0.3)
+
+    fig.suptitle("SAC Training Losses & Entropy Coefficient", fontsize=13)
+    fig.tight_layout()
+    fig.savefig(os.path.join(log_dir, "sac_losses.png"), dpi=120)
+    plt.close(fig)
+
+
+def plot_q_values(history, log_dir):
+    """Plot Q-value statistics over training."""
+    ts = history["loss_timesteps"]
+    if len(ts) < 1:
+        return
+
+    fig, ax = plt.subplots(figsize=(10, 5))
+    ax.plot(ts, history["mean_q"], label="Mean Q", color="tab:blue")
+    ax.fill_between(
+        ts, history["min_q"], history["max_q"],
+        alpha=0.2, color="tab:blue", label="Min–Max Q",
+    )
+    ax.set_xlabel("Timesteps")
+    ax.set_ylabel("Q-value")
+    ax.set_title("Q-value Statistics over Training")
+    ax.legend()
+    ax.grid(True, alpha=0.3)
+    fig.tight_layout()
+    fig.savefig(os.path.join(log_dir, "q_values.png"), dpi=120)
+    plt.close(fig)
+
+
+def plot_exploration_entropy(history, log_dir):
+    """Plot per-episode state visitation entropy (mirrors ExplorationEntropyCallback)."""
+    ent = history["episode_entropy"]
+    ts = history["episode_entropy_ts"]
+    if len(ent) < 2:
+        return
+
+    entropy = np.array(ent)
+    timesteps = np.array(ts)
+
+    window = max(1, len(entropy) // 20)
+    smoothed = np.convolve(entropy, np.ones(window) / window, mode="valid")
+    t_smooth = timesteps[window - 1:]
+
+    fig, ax = plt.subplots(figsize=(10, 4))
+    ax.plot(timesteps, entropy, alpha=0.25, color="steelblue",
+            label="Per-episode entropy")
+    ax.plot(t_smooth, smoothed, color="steelblue", linewidth=2,
+            label=f"Moving avg (window={window})")
+    ax.set_xlabel("Training Timesteps")
+    ax.set_ylabel("Mean State Entropy (nats)")
+    ax.set_title(
+        "Exploration Entropy over Training\n"
+        "(Higher \u2192 more exploration \u00b7 Lower \u2192 convergence / exploitation)"
+    )
+    ax.legend()
+    ax.grid(True, alpha=0.3)
+    fig.tight_layout()
+    fig.savefig(os.path.join(log_dir, "exploration_entropy.png"),
+                bbox_inches="tight", dpi=120)
+    plt.close(fig)
+
+
+def _compute_state_entropy(obs_array, bins=20):
+    """Mean Shannon entropy of the discretised state distribution."""
+    if obs_array.ndim == 1:
+        obs_array = obs_array[:, np.newaxis]
+    entropies = []
+    for d in range(obs_array.shape[1]):
+        counts, _ = np.histogram(obs_array[:, d], bins=bins)
+        probs = counts / (counts.sum() + 1e-12)
+        probs = probs[probs > 0]
+        entropies.append(-np.sum(probs * np.log(probs)))
+    return float(np.mean(entropies))
+
+
+def save_all_plots(history, log_dir):
+    """Generate all training plots from collected history."""
+    try:
+        plot_training_progress(history, log_dir)
+    except Exception as e:
+        print(f"  [plot] training_progress failed: {e}")
+
+    try:
+        if len(history.get("critic_loss", [])) > 0:
+            plot_sac_losses(history, log_dir)
+    except Exception as e:
+        print(f"  [plot] sac_losses failed: {e}")
+
+    try:
+        if len(history.get("mean_q", [])) > 0:
+            plot_q_values(history, log_dir)
+    except Exception as e:
+        print(f"  [plot] q_values failed: {e}")
+
+    try:
+        plot_exploration_entropy(history, log_dir)
+    except Exception as e:
+        print(f"  [plot] exploration_entropy failed: {e}")
 
 
 def main(args):
@@ -187,6 +337,21 @@ def main(args):
     print(f"Starting training for {num_iters} iterations...")
 
     best_reward = -np.inf
+    PLOT_FREQ = 5  # update plots every N iterations
+
+    # History for live plots
+    history = {
+        "timesteps": [], "rewards": [],
+        "loss_timesteps": [],
+        "critic_loss": [], "actor_loss": [], "alpha": [],
+        "mean_q": [], "min_q": [], "max_q": [],
+        "episode_entropy": [], "episode_entropy_ts": [],
+    }
+    # Keep track of which episode rewards we've already processed
+    _seen_episode_count = 0
+
+    # Create a local env for entropy computation (shares TF models already loaded)
+    _entropy_env = env_creator({"use_thermal": args.use_thermal})
 
     for i in range(1, num_iters + 1):
         result = algo.train()
@@ -210,6 +375,9 @@ def main(args):
         critic_loss = lstats.get("critic_loss", float("nan"))
         actor_loss = lstats.get("actor_loss", float("nan"))
         alpha_val = lstats.get("alpha_value", float("nan"))
+        mean_q = lstats.get("mean_q", float("nan"))
+        min_q = lstats.get("min_q", float("nan"))
+        max_q = lstats.get("max_q", float("nan"))
 
         print(
             f"Iter {i:>4d}/{num_iters} | "
@@ -220,6 +388,50 @@ def main(args):
             f"ActorL: {actor_loss:>8.3f} | "
             f"Alpha: {alpha_val:>6.3f}"
         )
+
+        # ---- Collect history for plots ----
+        if not np.isnan(ep_rew):
+            history["timesteps"].append(ts)
+            history["rewards"].append(float(ep_rew))
+
+        if not np.isnan(critic_loss):
+            history["loss_timesteps"].append(ts)
+            history["critic_loss"].append(float(critic_loss))
+            history["actor_loss"].append(float(actor_loss))
+            history["alpha"].append(float(alpha_val))
+            history["mean_q"].append(float(mean_q))
+            history["min_q"].append(float(min_q))
+            history["max_q"].append(float(max_q))
+
+        # Exploration entropy: compute from new completed episodes
+        hist_rewards = env_r.get("hist_stats", {}).get("episode_reward", [])
+        n_new_eps = len(hist_rewards) - _seen_episode_count
+        if n_new_eps > 0:
+            _seen_episode_count = len(hist_rewards)
+            # Run a quick rollout with the current policy to measure state entropy
+            try:
+                policy = algo.get_policy()
+                state = policy.get_initial_state()
+                obs, _ = _entropy_env.reset()
+                ep_obs = [obs.copy()]
+                done = False
+                while not done:
+                    action, state, _ = algo.compute_single_action(
+                        obs, state=state, explore=True
+                    )
+                    obs, _, terminated, truncated, _ = _entropy_env.step(action)
+                    done = terminated or truncated
+                    ep_obs.append(obs.copy())
+                obs_arr = np.stack(ep_obs)
+                entropy = _compute_state_entropy(obs_arr)
+                history["episode_entropy"].append(entropy)
+                history["episode_entropy_ts"].append(ts)
+            except Exception as e:
+                print(f"  [entropy] rollout failed: {e}")
+
+        # ---- Generate plots periodically ----
+        if i % PLOT_FREQ == 0 or i == num_iters:
+            save_all_plots(history, log_dir)
 
         # Checkpoint
         if i % config.CHECKPOINT_FREQ == 0 or i == num_iters:
@@ -232,6 +444,9 @@ def main(args):
                 print(f"  New best checkpoint: {best_ckpt}")
 
     print("Training finished.")
+
+    # Final plots
+    save_all_plots(history, log_dir)
 
     # Final save
     final_path = algo.save(os.path.join(log_dir, "final_checkpoint"))
