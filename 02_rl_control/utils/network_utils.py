@@ -73,14 +73,18 @@ def load_network(
     input_scaler = load_scaler(directory, input_scaler_name)
     output_scaler = load_scaler(directory, output_scaler_name)
 
-    # Wrap in tf.function for performance
+    # Resolve named input keys so Keras Functional models receive dict inputs
+    # (avoids "structure of inputs doesn't match" warnings in Keras 3)
+    main_input_name = model_main.layers[0].name
+    init_input_name = model_init.layers[0].name
+
     @tf.function(jit_compile=False)
     def predict_main(input_tensor):
-        return model_main(input_tensor, training=False)
+        return model_main({main_input_name: input_tensor}, training=False)
 
     @tf.function(jit_compile=False)
     def predict_init(input_tensor):
-        return model_init(input_tensor, training=False)
+        return model_init({init_input_name: input_tensor}, training=False)
 
     return (
         model_main,
