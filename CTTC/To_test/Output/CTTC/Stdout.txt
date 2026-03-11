@@ -1,0 +1,21 @@
+Using model family: CTTC
+Starting RL Loop Simulation...
+Loading ICE Model...
+Input_Shape Main: [1, 1, 4]
+	00: in_m_0_0
+
+Input_Shape Init: [1, 1, 16]
+	00: in_a_0_0
+Loading PG (Drivetrain) Model...
+Input_Shape Main: [1, 1, 4]
+	00: in_m_0_0
+
+Input_Shape Init: [1, 1, 2]
+	00: in_a_0_0
+Loading data from /home_nobck/marcial/Projects/HybridCar_RL/rl_emission_reduction/CTTC/To_test/../../internal_lstm_models/Test_Cycles/WLTC.csv...
+Initializing Model States...
+Running simulation for 3601 steps...
+Step 0/3601Step 100/3601Step 200/3601Step 300/3601Step 400/3601Step 500/3601Step 600/3601Step 700/3601Step 800/3601Step 900/3601Step 1000/3601Step 1100/3601Step 1200/3601Step 1300/3601Step 1400/3601Step 1500/3601Step 1600/3601Step 1700/3601Step 1800/3601Step 1900/3601Step 2000/3601Step 2100/3601Step 2200/3601Step 2300/3601Step 2400/3601Step 2500/3601Step 2600/3601Step 2700/3601Step 2800/3601Step 2900/3601Step 3000/3601Step 3100/3601Step 3200/3601Step 3300/3601Step 3400/3601Step 3500/3601Step 3600/3601
+Simulation complete in 3.54 seconds (0.98 ms/step)
+Plots saved to /home_nobck/marcial/Projects/HybridCar_RL/rl_emission_reduction/CTTC/To_test/Output/CTTC
+Results saved to /home_nobck/marcial/Projects/HybridCar_RL/rl_emission_reduction/CTTC/To_test/Output/CTTC/simulation_results.csv

@@ -1,0 +1,51 @@
+Using model family: TF-2.18
+Starting RL Loop Simulation...
+Loading ICE Model...
+Input_Shape Main: (1, None, 4)
+00: in_m_0_0 (InputLayer)
+01: m_0_0 (LSTM)
+02: m_1_0 (LSTM)
+03: m_2_0 (LSTM)
+04: out_m_0_0 (Dense)
+Input_Shape Init: (1, 1, 16)
+00: in_a_0_0 (InputLayer)
+01: h_0_0 (LSTM)
+02: c_0_0 (LSTM)
+03: h_1_0 (LSTM)
+04: c_1_0 (LSTM)
+05: h_2_0 (LSTM)
+06: c_2_0 (LSTM)
+07: out_h_0_0 (Lambda)
+08: out_c_0_0 (Lambda)
+09: out_h_1_0 (Lambda)
+10: out_c_1_0 (Lambda)
+11: out_h_2_0 (Lambda)
+12: out_c_2_0 (Lambda)
+Loading PG (Drivetrain) Model...
+Input_Shape Main: (1, None, 4)
+00: in_m_0_0 (InputLayer)
+01: m_0_0 (LSTM)
+02: m_1_0 (LSTM)
+03: m_2_0 (LSTM)
+04: out_m_0_0 (Dense)
+Input_Shape Init: (1, 1, 2)
+00: in_a_0_0 (InputLayer)
+01: h_0_0 (LSTM)
+02: c_0_0 (LSTM)
+03: h_1_0 (LSTM)
+04: c_1_0 (LSTM)
+05: h_2_0 (LSTM)
+06: c_2_0 (LSTM)
+07: out_h_0_0 (Lambda)
+08: out_c_0_0 (Lambda)
+09: out_h_1_0 (Lambda)
+10: out_c_1_0 (Lambda)
+11: out_h_2_0 (Lambda)
+12: out_c_2_0 (Lambda)
+Loading data from /home_nobck/marcial/Projects/HybridCar_RL/rl_emission_reduction/CTTC/To_test/../../internal_lstm_models/Test_Cycles/WLTC.csv...
+Initializing Model States...
+Running simulation for 3601 steps...
+Step 0/3601Step 100/3601Step 200/3601Step 300/3601Step 400/3601Step 500/3601Step 600/3601Step 700/3601Step 800/3601Step 900/3601Step 1000/3601Step 1100/3601Step 1200/3601Step 1300/3601Step 1400/3601Step 1500/3601Step 1600/3601Step 1700/3601Step 1800/3601Step 1900/3601Step 2000/3601Step 2100/3601Step 2200/3601Step 2300/3601Step 2400/3601Step 2500/3601Step 2600/3601Step 2700/3601Step 2800/3601Step 2900/3601Step 3000/3601Step 3100/3601Step 3200/3601Step 3300/3601Step 3400/3601Step 3500/3601Step 3600/3601
+Simulation complete in 5.51 seconds (1.53 ms/step)
+Plots saved to /home_nobck/marcial/Projects/HybridCar_RL/rl_emission_reduction/CTTC/To_test/Output/TF-2.18
+Results saved to /home_nobck/marcial/Projects/HybridCar_RL/rl_emission_reduction/CTTC/To_test/Output/TF-2.18/simulation_results.csv
