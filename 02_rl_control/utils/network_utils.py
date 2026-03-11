@@ -40,9 +40,13 @@ def set_states(model_main, states):
             h_key = name.replace("m_", "out_h_")
             c_key = name.replace("m_", "out_c_")
 
-            if h_key in states and c_key in states:
-                layer.states[0].assign(states[h_key])
-                layer.states[1].assign(states[c_key])
+            try:
+                if h_key in states and c_key in states:
+                    layer.states[0].assign(states[h_key])
+                    layer.states[1].assign(states[c_key])
+
+            except Exception as e:
+                print(f"Error setting states in set_states: {e}")
 
 
 def load_network(

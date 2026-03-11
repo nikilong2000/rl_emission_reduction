@@ -111,7 +111,13 @@ class EmissionControlEnv(gym.Env):
         else:
             chosen_file = random.choice(self.data_files)
 
-        self.df = pd.read_csv(chosen_file)
+        self.df = pd.read_csv(chosen_file, delimiter=";", encoding="latin1")
+        if self.df.shape[1] <= 1:
+            self.df = pd.read_csv(chosen_file, delimiter=",", encoding="latin1")
+
+        # Clean column names
+        self.df.columns = [col.strip() for col in self.df.columns]
+
         self.max_steps = len(self.df)
 
         # Initialize Models (Reset States)
