@@ -39,7 +39,7 @@ def process_file(in_path, out_path):
 def main():
     base_dir = "/Users/niklaslongschiefelbein/local_documents/THESIS/code/rl_emission_reduction/internal_lstm_models"
     dirs_to_process = [
-        ("Data_Drivetrain", "data_drivetrain_processsed"),
+        ("Data_Drivetrain", "data_drivetrain_processed"),
         ("Data_ICE", "data_ice_processed"),
     ]
 

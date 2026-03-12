@@ -14,7 +14,7 @@ PG_MODEL_DIR = os.path.join(
 )
 
 # Data Paths
-TRAIN_DATA_DIR = os.path.join(PROJECT_ROOT, "02_rl_control/data")
+TRAIN_DATA_DIR = os.path.join(PROJECT_ROOT, "02_rl_control/data_train")
 
 ## DIRECTORIES END
 ############################

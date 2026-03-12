@@ -4,6 +4,9 @@ import numpy as np
 import pandas as pd
 import tensorflow as tf
 import os
+import glob
+import random
+
 
 try:
     from .utils.network_utils import load_network, set_states
@@ -25,12 +28,16 @@ class EmissionControlEnv(gym.Env):
 
         self.dataset_path = dataset_path
 
-        import glob
-
         # Load Data Configuration
-        self.data_files = glob.glob(os.path.join(config.TRAIN_DATA_DIR, "*.csv"))
+        all_files = glob.glob(os.path.join(config.TRAIN_DATA_DIR, "*.csv"))
+        self.data_files = [
+            f
+            for f in all_files
+            if os.path.basename(f).startswith("drivetrain")
+            or os.path.basename(f) in ("WLTC_high.csv", "WLTC_low.csv")
+        ]
         if not self.data_files:
-            raise ValueError(f"No CSV files found in {config.TRAIN_DATA_DIR}")
+            raise ValueError(f"No valid CSV files found in {config.TRAIN_DATA_DIR}")
 
         self.df = None
         self.max_steps = 0
@@ -91,20 +98,11 @@ class EmissionControlEnv(gym.Env):
         self.last_nox = 0.0
         self.last_engine_on = False
 
-        # Column names mapping
-        self.col_map = {
-            "time": "Time_s",
-            "target_speed": "Car_Speed_kmph",  # WLTC speed is the target
-            "t_amb": "T_amb_K",
-            "p_amb": "p_amb_bar",
-        }
-
     def reset(self, seed=None, options=None):
         super().reset(seed=seed)
         self.current_step = 0
 
         # Load random driving cycle or deterministic
-        import random
 
         if self.dataset_path is not None:
             chosen_file = self.dataset_path
@@ -121,50 +119,80 @@ class EmissionControlEnv(gym.Env):
         self.max_steps = len(self.df)
 
         # Initialize Models (Reset States)
-        # ICE Init
-        # Initial outputs for ICE: 0, 0, 0, 0, 0, 298, ... (16 dims)
-        ice_init_vals = np.array(
-            [
-                [
-                    0.0,
-                    0.0,
-                    0.0,
-                    0.0,
-                    0.0,
-                    298.0,
-                    0.0,
-                    0.0,
-                    0.0,
-                    0.0,
-                    298.0,
-                    298.0,
-                    298.0,
-                    298.0,
-                    298.0,
-                    298.0,
-                ]
-            ]
-        )
+        # 16 dims for ICE
+        ice_cols = [
+            "ice_torque_nm",
+            "fuel_tot_gps",
+            "nox_eo_gps",
+            "co_eo_gps",
+            "thc_eo_gps",
+            "t_gas_eo_k",
+            "nox_tp_gps",
+            "co_tp_gps",
+            "co2_tp_gps",
+            "thc_tp_gps",
+            "t_wall_scr1_k",
+            "t_wall_doc_k",
+            "t_sub_dpf_k",
+            "t_wall_scr2_k",
+            "t_wall_scr3_k",
+            "t_gas_tp_k",
+        ]
+        ice_defaults = [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            298.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            298.0,
+            298.0,
+            298.0,
+            298.0,
+            298.0,
+            298.0,
+        ]
+
+        ice_init_val_row = []
+        for c, d in zip(ice_cols, ice_defaults):
+            if c in self.df.columns and not pd.isna(self.df.loc[0, c]):
+                ice_init_val_row.append(float(self.df.loc[0, c]))
+            else:
+                ice_init_val_row.append(d)
+
+        ice_init_vals = np.array([ice_init_val_row])
         ice_init_scaled = self.ice_out_scaler.transform(ice_init_vals).reshape(1, 1, -1)
         ice_states = self.ice_predict_init(ice_init_scaled)
         ice_states_dict = dict(zip(self.ice_init.output_names, ice_states))
         set_states(self.ice_main, ice_states_dict)
 
         # PG Init
-        # Initial outputs: 0, 0.7 (Speed, SOC)
-        pg_init_vals = np.array([[0.0, 0.7]])
+        pg_cols = ["car_speed_kmph", "soc_1"]
+        pg_defaults = [0.0, 0.7]
+        pg_init_val_row = []
+        for c, d in zip(pg_cols, pg_defaults):
+            if c in self.df.columns and not pd.isna(self.df.loc[0, c]):
+                pg_init_val_row.append(float(self.df.loc[0, c]))
+            else:
+                pg_init_val_row.append(d)
+
+        pg_init_vals = np.array([pg_init_val_row])
         pg_init_scaled = self.pg_out_scaler.transform(pg_init_vals).reshape(1, 1, -1)
         pg_states = self.pg_predict_init(pg_init_scaled)
         pg_states_dict = dict(zip(self.pg_init.output_names, pg_states))
         set_states(self.pg_main, pg_states_dict)
 
         # Initial State
-        self.last_ice_torque = 0.0
-        self.last_car_speed = 0.0
-        self.last_soc = 0.7
+        self.last_ice_torque = ice_init_val_row[0]  # ICE_Torque
+        self.last_car_speed = pg_init_val_row[0]  # Car_Speed
+        self.last_soc = pg_init_val_row[1]  # SOC
         self.initial_soc = self.last_soc
-        self.last_nox = 0.0
-        self.last_engine_on = False
+        self.last_nox = ice_init_val_row[6]  # nox_tp_gps
+        self.last_engine_on = True if ice_init_val_row[1] > 0.1 else False
 
         target_speed = self.df.loc[0, self.target_col_name()]
         initial_speed_error = target_speed - self.last_car_speed
@@ -183,8 +211,8 @@ class EmissionControlEnv(gym.Env):
         )
 
         info = {
-            "time_s": self.df.loc[0, self.col_map["time"]],
-            "target_speed": target_speed,
+            "time_s": self.df.loc[0, "time_s"],
+            "car_speed_kmph": target_speed,
         }
         return obs, info
 
@@ -320,7 +348,7 @@ class EmissionControlEnv(gym.Env):
         )
 
         info = {
-            "time_s": self.df.loc[self.current_step, self.col_map["time"]],
+            "time_s": self.df.loc[self.current_step, "time_s"],
             "target_speed": target_speed,
             "speed_error": speed_error,
             "nox": nox_tp,
@@ -336,8 +364,8 @@ class EmissionControlEnv(gym.Env):
 
     def target_col_name(self):
         # Helper to find the speed column
-        if "Car_Speed_kmph" in self.df.columns:
+        if "car_speed_kmph" in self.df.columns:
             return (
-                "Car_Speed_kmph"  # In WLTC.csv this is usually the target speed profile
+                "car_speed_kmph"  # In WLTC.csv this is usually the target speed profile
             )
         return self.df.columns[1]  # Fallback
