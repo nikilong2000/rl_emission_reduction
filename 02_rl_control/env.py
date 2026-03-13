@@ -15,6 +15,48 @@ except ImportError:
     from utils.network_utils import load_network, set_states
     import config
 
+# 16 dims for ICE
+_ICE_COLS = [
+    "ice_torque_nm",
+    "fuel_tot_gps",
+    "nox_eo_gps",
+    "co_eo_gps",
+    "thc_eo_gps",
+    "t_gas_eo_k",
+    "nox_tp_gps",
+    "co_tp_gps",
+    "co2_tp_gps",
+    "thc_tp_gps",
+    "t_wall_scr1_k",
+    "t_wall_doc_k",
+    "t_sub_dpf_k",
+    "t_wall_scr2_k",
+    "t_wall_scr3_k",
+    "t_gas_tp_k",
+]
+
+_ICE_DEFAULTS = [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    298.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    298.0,
+    298.0,
+    298.0,
+    298.0,
+    298.0,
+    298.0,
+]
+
+_PG_COLS = ["car_speed_kmph", "soc_1"]
+_PG_DEFAULTS = [0.0, 0.7]
+
 
 class EmissionControlEnv(gym.Env):
     """
@@ -90,20 +132,11 @@ class EmissionControlEnv(gym.Env):
             dtype=np.float32,
         )
 
-        # State variables
-        self.last_ice_torque = 0.0
-        self.last_car_speed = 0.0
-        self.last_soc = 0.7
-        self.initial_soc = self.last_soc
-        self.last_nox = 0.0
-        self.last_engine_on = False
-
     def reset(self, seed=None, options=None):
         super().reset(seed=seed)
         self.current_step = 0
 
         # Load random driving cycle or deterministic
-
         if self.dataset_path is not None:
             chosen_file = self.dataset_path
         else:
@@ -115,50 +148,11 @@ class EmissionControlEnv(gym.Env):
 
         # Clean column names
         self.df.columns = [col.strip() for col in self.df.columns]
-
         self.max_steps = len(self.df)
 
         # Initialize Models (Reset States)
-        # 16 dims for ICE
-        ice_cols = [
-            "ice_torque_nm",
-            "fuel_tot_gps",
-            "nox_eo_gps",
-            "co_eo_gps",
-            "thc_eo_gps",
-            "t_gas_eo_k",
-            "nox_tp_gps",
-            "co_tp_gps",
-            "co2_tp_gps",
-            "thc_tp_gps",
-            "t_wall_scr1_k",
-            "t_wall_doc_k",
-            "t_sub_dpf_k",
-            "t_wall_scr2_k",
-            "t_wall_scr3_k",
-            "t_gas_tp_k",
-        ]
-        ice_defaults = [
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            298.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            298.0,
-            298.0,
-            298.0,
-            298.0,
-            298.0,
-            298.0,
-        ]
-
         ice_init_val_row = []
-        for c, d in zip(ice_cols, ice_defaults):
+        for c, d in zip(_ICE_COLS, _ICE_DEFAULTS):
             if c in self.df.columns and not pd.isna(self.df.loc[0, c]):
                 ice_init_val_row.append(float(self.df.loc[0, c]))
             else:
@@ -171,10 +165,8 @@ class EmissionControlEnv(gym.Env):
         set_states(self.ice_main, ice_states_dict)
 
         # PG Init
-        pg_cols = ["car_speed_kmph", "soc_1"]
-        pg_defaults = [0.0, 0.7]
         pg_init_val_row = []
-        for c, d in zip(pg_cols, pg_defaults):
+        for c, d in zip(_PG_COLS, _PG_DEFAULTS):
             if c in self.df.columns and not pd.isna(self.df.loc[0, c]):
                 pg_init_val_row.append(float(self.df.loc[0, c]))
             else:
@@ -192,15 +184,14 @@ class EmissionControlEnv(gym.Env):
         self.last_soc = pg_init_val_row[1]  # SOC
         self.initial_soc = self.last_soc
         self.last_nox = ice_init_val_row[6]  # nox_tp_gps
-        self.last_engine_on = True if ice_init_val_row[1] > 0.1 else False
+        self.last_engine_on = True if ice_init_val_row[1] > 0.0575 else False
 
         target_speed = self.df.loc[0, self.target_col_name()]
-        initial_speed_error = target_speed - self.last_car_speed
 
         obs = np.array(
             [
                 self.last_car_speed,
-                initial_speed_error,
+                0.0,  # Initial speed error is exactly 0.0
                 self.last_soc,
                 self.last_ice_torque,
                 self.last_nox,
@@ -239,8 +230,8 @@ class EmissionControlEnv(gym.Env):
         # 2. Prepare Inputs for ICE Model
         # Inputs: "ICE_Speed_rpm", "fuel_mg", "T_amb_K", "p_amb_bar"
         t_amb = (
-            self.df.loc[self.current_step, "T_amb_K"]
-            if "T_amb_K" in self.df.columns
+            self.df.loc[self.current_step, "t_amb_k"]
+            if "t_amb_k" in self.df.columns
             else 298.0
         )
         p_amb = (

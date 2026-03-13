@@ -123,14 +123,33 @@ class EmissionControlEnvThermal(EmissionControlEnv):
     # ------------------------------------------------------------------
 
     def reset(self, seed=None, options=None):
+        import pandas as pd
+
         obs, info = super().reset(seed=seed, options=options)
 
-        # Reset thermal state
-        self.last_t_gas_eo = 298.0
-        self.last_t_sub_dpf = 298.0
-        self.last_t_gas_tp = 298.0
+        # Reset thermal state dynamically from the first row of the dataset
+        if "t_gas_eo_k" in self.df.columns and not pd.isna(
+            self.df.loc[0, "t_gas_eo_k"]
+        ):
+            self.last_t_gas_eo = float(self.df.loc[0, "t_gas_eo_k"])
+        else:
+            self.last_t_gas_eo = 298.0
 
-        # Rebuild obs including thermal variables (all at ambient on reset)
+        if "t_sub_dpf_k" in self.df.columns and not pd.isna(
+            self.df.loc[0, "t_sub_dpf_k"]
+        ):
+            self.last_t_sub_dpf = float(self.df.loc[0, "t_sub_dpf_k"])
+        else:
+            self.last_t_sub_dpf = 298.0
+
+        if "t_gas_tp_k" in self.df.columns and not pd.isna(
+            self.df.loc[0, "t_gas_tp_k"]
+        ):
+            self.last_t_gas_tp = float(self.df.loc[0, "t_gas_tp_k"])
+        else:
+            self.last_t_gas_tp = 298.0
+
+        # Rebuild obs including thermal variables
         obs = np.append(
             obs,
             [self.last_t_gas_eo, self.last_t_sub_dpf, self.last_t_gas_tp],
@@ -257,7 +276,7 @@ class EmissionControlEnvThermal(EmissionControlEnv):
         )
 
         info = {
-            "time_s": self.df.loc[self.current_step, self.col_map["time"]],
+            "time_s": self.df.loc[self.current_step, "time_s"],
             "target_speed": target_speed,
             "speed_error": speed_error,
             "nox": nox_tp,
