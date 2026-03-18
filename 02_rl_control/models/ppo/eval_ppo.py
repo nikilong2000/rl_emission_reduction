@@ -191,7 +191,16 @@ def evaluate_model(model_path, eval_log_dir=None, train_config=None):
         total_reward += rewards[0]
 
         i = infos[0]
-        raw_obs = env.get_original_obs()[0] if vec_normalized else obs[0]
+        # VecEnv auto-resets on done=True, so use terminal_observation to log
+        # the true final state of the finished episode instead of the next reset state.
+        if done and "terminal_observation" in i:
+            terminal_obs = i["terminal_observation"]
+            if vec_normalized:
+                raw_obs = env.unnormalize_obs(np.array([terminal_obs]))[0]
+            else:
+                raw_obs = terminal_obs
+        else:
+            raw_obs = env.get_original_obs()[0] if vec_normalized else obs[0]
 
         eval_results["speed_actual"].append(raw_obs[0])
         eval_results["speed_target"].append(

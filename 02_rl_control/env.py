@@ -108,29 +108,22 @@ class EmissionControlEnv(gym.Env):
             self.pg_predict_init,
         ) = self.pg_tuple
 
-        # Define Action Space
-        # 0: ICE_Speed_rpm, 1: EM2_Torque_Nm, 2: fuel_mg, 3: Brake_perc
-        # Limits need to be realistic. Using approximate bounds from data/logic for now.
-        # User defined these as continuous actions.
-        # We normalize actions to [-1, 1] for PPO and rescale inside step.
+        # define action space
+        # normalise actions to [-1, 1] and rescale inside step
         self.action_space = spaces.Box(
             low=-1.0, high=1.0, shape=(5,), dtype=np.float32
         )  # [Engine_State, ICE_Speed, EM2_Torque, Fuel_Mass, Brake]
 
-        # Action scaling (Min/Max values for rescaling)
-        self.action_min = np.array(
-            [-1.0, 900.0, -421.0, 3.0, 0.0], dtype=np.float32
-        )  # EngineOn Threshold, RPM, Torque, Fuel, Brake
+        # action scaling (Min/Max values for rescaling)
+        self.action_min = np.array([-1.0, 900.0, -421.0, 3.0, 0.0], dtype=np.float32)
         self.action_max = np.array([1.0, 4000.0, 421.0, 70.0, 100.0], dtype=np.float32)
 
-        # Define Observation Space
-        # [Car_Speed (km/h), Speed_Error (km/h), SOC (0-1), ICE_Torque (Nm),
-        # NOx (g/s), Engine_On (0-1), SOC_Error (-1 to 1)]
+        # define observation space
         self.observation_space = spaces.Box(
             low=np.array([-5.0, -155.0, 0.0, -50.0, 0.0, 0.0, -1.0], dtype=np.float32),
-            high=np.array([150.0, 155.0, 1.0, 300.0, 10.0, 1.0, 1.0], dtype=np.float32),
+            high=np.array([150.0, 155.0, 1.0, 300.0, 0.4, 1.0, 1.0], dtype=np.float32),
             dtype=np.float32,
-        )
+        )  # [Car_Speed (km/h), Speed_Error (km/h), SOC (0-1), ICE_Torque (Nm), NOx (g/s), Engine_On (0-1), SOC_Error (-1 to 1)]
 
     def reset(self, seed=None, options=None):
         super().reset(seed=seed)
@@ -212,17 +205,17 @@ class EmissionControlEnv(gym.Env):
 
     def step(self, action):
         # 1. Rescale Action
-        # action is in [-1, 1], map to [min, max]
+        # action is in [-1, 1], map to [min, max] (physical scale)
         scaled_action = self.action_min + (action + 1.0) * 0.5 * (
             self.action_max - self.action_min
         )
 
-        print("Scaled Actions:")
-        print(f"  Engine_State: {scaled_action[0]}")
-        print(f"  ICE_Speed_rpm: {scaled_action[1]}")
-        print(f"  EM2_Torque_Nm: {scaled_action[2]}")
-        print(f"  Fuel_Mass_mg: {scaled_action[3]}")
-        print(f"  Brake_Perc: {scaled_action[4]}")
+        # print("Scaled Actions:")
+        # print(f"  Engine_State: {scaled_action[0]}")
+        # print(f"  ICE_Speed_rpm: {scaled_action[1]}")
+        # print(f"  EM2_Torque_Nm: {scaled_action[2]}")
+        # print(f"  Fuel_Mass_mg: {scaled_action[3]}")
+        # print(f"  Brake_Perc: {scaled_action[4]}")
 
         engine_state_req = scaled_action[0]
         ice_speed_rpm = scaled_action[1]
@@ -284,7 +277,7 @@ class EmissionControlEnv(gym.Env):
 
         # Normalization factors to bring terms roughly into [0, 1] range
         norm_speed = 50.0  # Max expected practical speed error (km/h)
-        norm_emission = 0.14  # Typical high combined tailpipe emissions (g/s)
+        norm_emission = 0.4  # Typical high combined tailpipe emissions (g/s)
         norm_fuel = 70.0  # Max fuel injection per step from config (mg)
         norm_brake = 100.0  # Max brake percentage bounds (%)
         norm_soc = 0.3  # Typical maximum allowed SOC drift scale
