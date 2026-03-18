@@ -70,7 +70,7 @@ class EmissionControlEnv(gym.Env):
 
         self.dataset_path = dataset_path
 
-        # Load Data Configuration
+        # loading csvs with speed trajectories
         all_files = glob.glob(os.path.join(config.TRAIN_DATA_DIR, "*.csv"))
         self.data_files = [
             f
@@ -85,7 +85,7 @@ class EmissionControlEnv(gym.Env):
         self.max_steps = 0
         self.current_step = 0
 
-        # Load Models
+        # load models
         print("Loading ICE Model...")
         self.ice_tuple = load_network(config.ICE_MODEL_DIR)
         (
@@ -136,21 +136,23 @@ class EmissionControlEnv(gym.Env):
         super().reset(seed=seed)
         self.current_step = 0
 
-        # Load random driving cycle or deterministic
+        # load random or specific driving cycle
         if self.dataset_path is not None:
             chosen_file = self.dataset_path
         else:
             chosen_file = random.choice(self.data_files)
 
+        print("\nUsing", str(chosen_file), ".")
+
         self.df = pd.read_csv(chosen_file, delimiter=";", encoding="latin1")
         if self.df.shape[1] <= 1:
             self.df = pd.read_csv(chosen_file, delimiter=",", encoding="latin1")
 
-        # Clean column names
+        # clean column names
         self.df.columns = [col.strip() for col in self.df.columns]
         self.max_steps = len(self.df)
 
-        # Initialize Models (Reset States)
+        # initialise models based on initial state in cycle
         ice_init_val_row = []
         for c, d in zip(_ICE_COLS, _ICE_DEFAULTS):
             if c in self.df.columns and not pd.isna(self.df.loc[0, c]):
@@ -164,7 +166,6 @@ class EmissionControlEnv(gym.Env):
         ice_states_dict = dict(zip(self.ice_init.output_names, ice_states))
         set_states(self.ice_main, ice_states_dict)
 
-        # PG Init
         pg_init_val_row = []
         for c, d in zip(_PG_COLS, _PG_DEFAULTS):
             if c in self.df.columns and not pd.isna(self.df.loc[0, c]):
@@ -178,13 +179,15 @@ class EmissionControlEnv(gym.Env):
         pg_states_dict = dict(zip(self.pg_init.output_names, pg_states))
         set_states(self.pg_main, pg_states_dict)
 
-        # Initial State
+        # set initial state
         self.last_ice_torque = ice_init_val_row[0]  # ICE_Torque
         self.last_car_speed = pg_init_val_row[0]  # Car_Speed
         self.last_soc = pg_init_val_row[1]  # SOC
         self.initial_soc = self.last_soc
         self.last_nox = ice_init_val_row[6]  # nox_tp_gps
-        self.last_engine_on = True if ice_init_val_row[1] > 0.0575 else False
+        self.last_engine_on = (
+            True if ice_init_val_row[1] > 0.0575 else False
+        )  # TODO: check if this is suitable
 
         target_speed = self.df.loc[0, self.target_col_name()]
 
@@ -213,6 +216,13 @@ class EmissionControlEnv(gym.Env):
         scaled_action = self.action_min + (action + 1.0) * 0.5 * (
             self.action_max - self.action_min
         )
+
+        print("Scaled Actions:")
+        print(f"  Engine_State: {scaled_action[0]}")
+        print(f"  ICE_Speed_rpm: {scaled_action[1]}")
+        print(f"  EM2_Torque_Nm: {scaled_action[2]}")
+        print(f"  Fuel_Mass_mg: {scaled_action[3]}")
+        print(f"  Brake_Perc: {scaled_action[4]}")
 
         engine_state_req = scaled_action[0]
         ice_speed_rpm = scaled_action[1]
@@ -247,13 +257,8 @@ class EmissionControlEnv(gym.Env):
         ice_pred_scaled = self.ice_predict_main(ice_in_scaled)
         ice_pred = self.ice_out_scaler.inverse_transform(ice_pred_scaled.numpy()[0])
 
-        # Outputs: ICE_Torque_Nm (idx 0), ... NOx_tp_gps (idx 6), CO_tp_gps (idx 7) ...
-        # Check config.txt for indices.
-        # Based on config.txt:
-        # outputs = ICE_Torque_Nm, fuel_tot_gps, NOx_eo_gps, CO_eo_gps, THC_eo_gps, T_gas_eo_K, NOx_tp_gps, CO_tp_gps, ...
         # Index 0: ICE_Torque_Nm
         # Index 6: NOx_tp_gps (Tailpipe)
-
         ice_torque = ice_pred[0][0]
         nox_tp = ice_pred[0][6]
 

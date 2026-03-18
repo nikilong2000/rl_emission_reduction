@@ -27,14 +27,24 @@ sys.path.append(os.path.dirname(os.path.dirname(current_dir)))
 
 try:
     from ...env import EmissionControlEnv
-    from ...plotting import TrainingLivePlotCallback, plot_evaluation, plot_actions, ExplorationEntropyCallback
+    from ...plotting import (
+        TrainingLivePlotCallback,
+        plot_evaluation,
+        plot_actions,
+        ExplorationEntropyCallback,
+    )
     from . import config
     from .eval_ppo import evaluate_model
     from ...utils import safety_utils
     from ...utils.checkpoint_utils import VecNormalizeCheckpointCallback
 except ImportError:
     from env import EmissionControlEnv
-    from plotting import TrainingLivePlotCallback, plot_evaluation, plot_actions, ExplorationEntropyCallback
+    from plotting import (
+        TrainingLivePlotCallback,
+        plot_evaluation,
+        plot_actions,
+        ExplorationEntropyCallback,
+    )
     import config
     from eval_ppo import evaluate_model
     from utils import safety_utils
@@ -56,7 +66,9 @@ def main(args):
     # Create Environment
     # Use Monitor to log episode rewards/lengths to csv for the callback
     def make_env():
-        e = EmissionControlEnv()
+        e = EmissionControlEnv(
+            dataset_path="/Users/niklaslongschiefelbein/local_documents/THESIS/code/rl_emission_reduction/02_rl_control/data_train/WLTC.csv"
+        )
         return Monitor(e, os.path.join(log_dir, "monitor.csv"))
 
     env = DummyVecEnv([make_env])
@@ -158,13 +170,19 @@ def main(args):
     print("Starting Training...")
     model.learn(
         total_timesteps=train_config["total_timesteps"],
-        callback=[checkpoint_callback, vec_normalize_checkpoint_callback, plot_callback, entropy_callback],
+        callback=[
+            checkpoint_callback,
+            vec_normalize_checkpoint_callback,
+            plot_callback,
+            entropy_callback,
+        ],
     )
 
     print("Training finished.")
 
     # Save the final model
     model.save(os.path.join(log_dir, "ppo_emission_final"))
+    env.save(os.path.join(log_dir, "vec_normalize.pkl"))
     with open(os.path.join(log_dir, "train_config.json"), "w") as f:
         json.dump(train_config, f, indent=4)
     print(f"Model and VecNormalize stats saved to {log_dir}")

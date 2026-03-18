@@ -190,6 +190,7 @@ def main(args):
 
     # Save
     model.save(os.path.join(log_dir, "td3_emission_final"))
+    env.save(os.path.join(log_dir, "vec_normalize.pkl"))
     with open(os.path.join(log_dir, "train_config.json"), "w") as f:
         json.dump(train_config, f, indent=4)
     print(f"Model and VecNormalize stats saved to {log_dir}")
