@@ -1,0 +1,23 @@
+Kilometer, NOx (mg/km), NOx_Pass (<=80 mg/km)
+1, 447.67, False
+2, -11.21, True
+3, 1704.84, False
+4, -31.09, True
+5, -22.65, True
+6, -17.23, True
+7, 25.08, True
+8, -18.13, True
+9, -18.48, True
+10, -9.29, True
+11, -8.47, True
+12, -9.82, True
+13, -10.47, True
+14, -19.69, True
+15, 22.35, True
+16, -6.53, True
+17, -10.46, True
+18, -9.22, True
+19, -9.17, True
+20, -9.04, True
+21, -9.71, True
+Partial (0.43 km), -17.83, True
