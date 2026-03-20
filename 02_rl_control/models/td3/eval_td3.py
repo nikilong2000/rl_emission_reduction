@@ -149,20 +149,21 @@ def evaluate_model(model_path, eval_log_dir=None, train_config=None, use_thermal
 
     # Store initial state
     raw_obs = env.get_original_obs()[0] if vec_normalized else obs[0]
-    eval_results["speed_actual"].append(raw_obs[0])
-    eval_results["speed_target"].append(
-        infos[0].get("target_speed", raw_obs[0] + raw_obs[1])
-        if "infos" in locals()
-        else (raw_obs[0] + raw_obs[1])
-    )
-    eval_results["soc"].append(raw_obs[2])
-    eval_results["ice_torque"].append(raw_obs[3])
-    eval_results["nox"].append(raw_obs[4])
-    eval_results["fuel"].append(0.0)
-    eval_results["engine_on"].append(False)
-    eval_results["ice_speed_rpm"].append(0.0)
-    eval_results["em2_torque_nm"].append(0.0)
-    eval_results["brake_perc"].append(0.0)
+
+    # eval_results["speed_actual"].append(raw_obs[0])
+    # eval_results["speed_target"].append(
+    #     infos[0].get("target_speed", raw_obs[0] + raw_obs[1])
+    #     if "infos" in locals()
+    #     else (raw_obs[0] + raw_obs[1])
+    # )
+    # eval_results["soc"].append(raw_obs[2])
+    # eval_results["ice_torque"].append(raw_obs[3])
+    # eval_results["nox"].append(raw_obs[4])
+    # eval_results["fuel"].append(0.0)
+    # eval_results["engine_on"].append(False)
+    # eval_results["ice_speed_rpm"].append(0.0)
+    # eval_results["em2_torque_nm"].append(0.0)
+    # eval_results["brake_perc"].append(0.0)
 
     while not done:
         action, _states = model.predict(obs, deterministic=True)
@@ -189,11 +190,11 @@ def evaluate_model(model_path, eval_log_dir=None, train_config=None, use_thermal
         eval_results["soc"].append(raw_obs[2])
         eval_results["ice_torque"].append(raw_obs[3])
         eval_results["nox"].append(raw_obs[4])
-        eval_results["fuel"].append(i.get("fuel", 0.0))
-        eval_results["engine_on"].append(i.get("engine_on", False))
-        eval_results["ice_speed_rpm"].append(i.get("ice_speed_rpm", 0.0))
-        eval_results["em2_torque_nm"].append(i.get("em2_torque_nm", 0.0))
-        eval_results["brake_perc"].append(i.get("brake_perc", 0.0))
+        eval_results["fuel"].append(i.get("fuel"))
+        eval_results["engine_on"].append(i.get("engine_on"))
+        eval_results["ice_speed_rpm"].append(i.get("ice_speed_rpm"))
+        eval_results["em2_torque_nm"].append(i.get("em2_torque_nm"))
+        eval_results["brake_perc"].append(i.get("brake_perc"))
 
     print(f"Evaluation finished. Total Reward: {total_reward}")
 

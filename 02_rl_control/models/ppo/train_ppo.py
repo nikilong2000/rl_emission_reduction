@@ -66,9 +66,7 @@ def main(args):
     # Create Environment
     # Use Monitor to log episode rewards/lengths to csv for the callback
     def make_env():
-        e = EmissionControlEnv(
-            dataset_path="/Users/niklaslongschiefelbein/local_documents/THESIS/code/rl_emission_reduction/02_rl_control/data_train/WLTC.csv"
-        )
+        e = EmissionControlEnv()
         return Monitor(e, os.path.join(log_dir, "monitor.csv"))
 
     env = DummyVecEnv([make_env])

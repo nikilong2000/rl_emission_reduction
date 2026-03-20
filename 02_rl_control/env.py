@@ -179,8 +179,8 @@ class EmissionControlEnv(gym.Env):
         self.initial_soc = self.last_soc
         self.last_nox = ice_init_val_row[6]  # nox_tp_gps
         self.last_engine_on = (
-            True if ice_init_val_row[1] > 0.0575 else False
-        )  # TODO: check if this is suitable
+            True if ice_init_val_row[1] >= 0.1 else False
+        )  # value by Markus to approximate initial state
 
         target_speed = self.df.loc[0, self.target_col_name()]
 
