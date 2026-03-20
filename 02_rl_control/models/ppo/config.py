@@ -13,6 +13,9 @@ PG_MODEL_DIR = os.path.join(
     PROJECT_ROOT, "internal_lstm_models/NN_Application/Nets/Drivetrain"
 )
 
+ICE_MODEL_DIR_ONNX = os.path.join(PROJECT_ROOT, "CTTC/Models/ICE")
+PG_MODEL_DIR_ONNX = os.path.join(PROJECT_ROOT, "CTTC/Models/Drivetrain")
+
 # Data Paths
 TRAIN_DATA_DIR = os.path.join(PROJECT_ROOT, "02_rl_control/data_train")
 
@@ -34,7 +37,7 @@ CLIP_RANGE = 0.2
 TOTAL_TIMESTEPS = 1_200_000
 
 # Reward Weights
-W_SPEED = 1.0
+W_SPEED = 1.2
 W_EMISSION = 0.85
 W_FUEL = 0.0
 W_BRAKE = 0.5

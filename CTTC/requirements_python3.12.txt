@@ -29,7 +29,7 @@ mpmath==1.3.0
 namex==0.1.0
 narwhals==2.16.0
 numpy==2.0.2
-onnx_predict @ file:///home/marcial/nobck/Projects/HybridCar_RL/rl_emission_reduction/CTTC/onnx_predict-0.2.1-py3-none-any.whl#sha256=6e5e3fa9af80a5be40f59058d6ead0dc287d30f75df061e5b0f22b3d2dd1b8b6
+# onnx_predict @ CTTC/onnx_predict-0.2.1-py3-none-any.whl
 onnxruntime==1.23.0
 opt_einsum==3.4.0
 optree==0.18.0

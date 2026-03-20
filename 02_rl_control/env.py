@@ -7,13 +7,17 @@ import os
 import glob
 import random
 
+# from ONNX_Predict.utilities import load_network, set_states
 
-try:
-    from .utils.network_utils import load_network, set_states
-    from . import config
-except ImportError:
-    from utils.network_utils import load_network, set_states
-    import config
+
+# try:
+#     from .utils.network_utils import load_network, set_states
+#     from . import config
+# except ImportError:
+#     from utils.network_utils import load_network, set_states
+#     import config
+
+import config
 
 # 16 dims for ICE
 _ICE_COLS = [
@@ -57,6 +61,8 @@ _ICE_DEFAULTS = [
 _PG_COLS = ["car_speed_kmph", "soc_1"]
 _PG_DEFAULTS = [0.0, 0.7]
 
+test = True
+
 
 class EmissionControlEnv(gym.Env):
     """
@@ -86,8 +92,31 @@ class EmissionControlEnv(gym.Env):
         self.current_step = 0
 
         # load models
+        # TODO: Adjust for ONNX or TF2.18
+        self.use_onnx = True
+
+        if self.use_onnx:
+            print("USING ONNX")
+            try:
+                from ONNX_Predict.utilities import load_network, set_states
+            except ImportError:
+                print(
+                    "Warning: ONNX_Predict.utilities not found. Falling back to local utils.network_utils."
+                )
+
+            ice_dir = config.ICE_MODEL_DIR_ONNX
+            drivetrain_dir = config.PG_MODEL_DIR_ONNX
+        else:
+            from utils.network_utils import load_network, set_states
+
+            ice_dir = config.ICE_MODEL_DIR
+            drivetrain_dir = config.PG_MODEL_DIR
+
+        self.load_network = load_network
+        self.set_states = set_states
+
         print("Loading ICE Model...")
-        self.ice_tuple = load_network(config.ICE_MODEL_DIR)
+        self.ice_tuple = self.load_network(ice_dir)
         (
             self.ice_main,
             self.ice_init,
@@ -98,7 +127,7 @@ class EmissionControlEnv(gym.Env):
         ) = self.ice_tuple
 
         print("Loading Drivetrain (PG) Model...")
-        self.pg_tuple = load_network(config.PG_MODEL_DIR)
+        self.pg_tuple = self.load_network(drivetrain_dir)
         (
             self.pg_main,
             self.pg_init,
@@ -153,11 +182,11 @@ class EmissionControlEnv(gym.Env):
             else:
                 ice_init_val_row.append(d)
 
-        ice_init_vals = np.array([ice_init_val_row])
+        ice_init_vals = np.array([ice_init_val_row], dtype=np.float32)
         ice_init_scaled = self.ice_out_scaler.transform(ice_init_vals).reshape(1, 1, -1)
         ice_states = self.ice_predict_init(ice_init_scaled)
         ice_states_dict = dict(zip(self.ice_init.output_names, ice_states))
-        set_states(self.ice_main, ice_states_dict)
+        self.set_states(self.ice_main, ice_states_dict)
 
         pg_init_val_row = []
         for c, d in zip(_PG_COLS, _PG_DEFAULTS):
@@ -166,11 +195,11 @@ class EmissionControlEnv(gym.Env):
             else:
                 pg_init_val_row.append(d)
 
-        pg_init_vals = np.array([pg_init_val_row])
+        pg_init_vals = np.array([pg_init_val_row], dtype=np.float32)
         pg_init_scaled = self.pg_out_scaler.transform(pg_init_vals).reshape(1, 1, -1)
         pg_states = self.pg_predict_init(pg_init_scaled)
         pg_states_dict = dict(zip(self.pg_init.output_names, pg_states))
-        set_states(self.pg_main, pg_states_dict)
+        self.set_states(self.pg_main, pg_states_dict)
 
         # set initial state
         self.last_ice_torque = ice_init_val_row[0]  # ICE_Torque
@@ -243,12 +272,17 @@ class EmissionControlEnv(gym.Env):
             else 1.005
         )
 
-        ice_inputs = np.array([[ice_speed_rpm, fuel_mg, t_amb, p_amb]])
+        ice_inputs = np.array(
+            [[ice_speed_rpm, fuel_mg, t_amb, p_amb]], dtype=np.float32
+        )
         ice_in_scaled = self.ice_in_scaler.transform(ice_inputs).reshape(1, 1, -1)
 
         # 3. Predict ICE Outputs
         ice_pred_scaled = self.ice_predict_main(ice_in_scaled)
-        ice_pred = self.ice_out_scaler.inverse_transform(ice_pred_scaled.numpy()[0])
+        if self.use_onnx:
+            ice_pred = self.ice_out_scaler.inverse_transform(ice_pred_scaled[0])
+        else:
+            ice_pred = self.ice_out_scaler.inverse_transform(ice_pred_scaled.numpy()[0])
 
         # Index 0: ICE_Torque_Nm
         # Index 6: NOx_tp_gps (Tailpipe)
@@ -257,12 +291,17 @@ class EmissionControlEnv(gym.Env):
 
         # 4. Prepare Inputs for PG Model
         # Inputs: "ICE_Speed_rpm", "ICE: ICE_Torque_Nm", "EM2_Torque_Nm", "Brake_perc"
-        pg_inputs = np.array([[ice_speed_rpm, ice_torque, em2_torque_nm, brake_perc]])
+        pg_inputs = np.array(
+            [[ice_speed_rpm, ice_torque, em2_torque_nm, brake_perc]], dtype=np.float32
+        )
         pg_in_scaled = self.pg_in_scaler.transform(pg_inputs).reshape(1, 1, -1)
 
         # 5. Predict PG Outputs
         pg_pred_scaled = self.pg_predict_main(pg_in_scaled)
-        pg_pred = self.pg_out_scaler.inverse_transform(pg_pred_scaled.numpy()[0])
+        if self.use_onnx:
+            pg_pred = self.pg_out_scaler.inverse_transform(pg_pred_scaled[0])
+        else:
+            pg_pred = self.pg_out_scaler.inverse_transform(pg_pred_scaled.numpy()[0])
 
         # Outputs: Car_Speed_kmph, SOC_1
         car_speed = pg_pred[0][0]
