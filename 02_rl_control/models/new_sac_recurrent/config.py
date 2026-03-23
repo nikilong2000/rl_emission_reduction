@@ -10,6 +10,9 @@ ICE_MODEL_DIR = os.path.join(
 PG_MODEL_DIR = os.path.join(
     PROJECT_ROOT, "internal_lstm_models/NN_Application/Nets/Drivetrain"
 )
+ICE_MODEL_DIR_ONNX = os.path.join(PROJECT_ROOT, "CTTC/Models/ICE")
+PG_MODEL_DIR_ONNX = os.path.join(PROJECT_ROOT, "CTTC/Models/Drivetrain")
+USE_ONNX = False
 TRAIN_DATA_DIR = os.path.join(PROJECT_ROOT, "02_rl_control/data")
 ## DIRECTORIES END
 ############################

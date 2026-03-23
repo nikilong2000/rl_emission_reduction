@@ -1,6 +1,7 @@
 import os
 import json
 import datetime
+import time
 import numpy as np
 import warnings
 import argparse
@@ -177,11 +178,26 @@ def main(args):
 
     # Train
     print("Starting SAC Training...")
+    training_start_time = time.perf_counter()
     model.learn(
         total_timesteps=config.TOTAL_TIMESTEPS,
-        callback=[checkpoint_callback, vec_normalize_checkpoint_callback, plot_callback, entropy_callback],
+        callback=[
+            checkpoint_callback,
+            vec_normalize_checkpoint_callback,
+            plot_callback,
+            entropy_callback,
+        ],
     )
-    print("Training finished.")
+    training_duration_seconds = time.perf_counter() - training_start_time
+    training_duration_hms = str(
+        datetime.timedelta(seconds=int(training_duration_seconds))
+    )
+    train_config["training_duration_seconds"] = round(training_duration_seconds, 3)
+    train_config["training_duration_hms"] = training_duration_hms
+    print(
+        f"Training finished in {training_duration_seconds:.2f}s "
+        f"({training_duration_hms})."
+    )
 
     # Save
     model.save(os.path.join(log_dir, "sac_emission_final"))

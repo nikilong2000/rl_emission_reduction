@@ -27,6 +27,7 @@ sys.path.append(os.path.dirname(os.path.dirname(current_dir)))
 
 try:
     from ...env import EmissionControlEnv
+    from ...env_thermal import EmissionControlEnvThermal
     from ...plotting import (
         TrainingLivePlotCallback,
         plot_evaluation,
@@ -39,6 +40,7 @@ try:
     from ...utils.checkpoint_utils import VecNormalizeCheckpointCallback
 except ImportError:
     from env import EmissionControlEnv
+    from env_thermal import EmissionControlEnvThermal
     from plotting import (
         TrainingLivePlotCallback,
         plot_evaluation,
@@ -66,9 +68,8 @@ def main(args):
     # Create Environment
     # Use Monitor to log episode rewards/lengths to csv for the callback
     def make_env():
-        e = EmissionControlEnv(
-            dataset_path="/Users/niklaslongschiefelbein/local_documents/THESIS/code/rl_emission_reduction/02_rl_control/data_train/WLTC.csv"
-        )
+        env_cls = EmissionControlEnvThermal if args.use_thermal else EmissionControlEnv
+        e = env_cls()
         return Monitor(e, os.path.join(log_dir, "monitor.csv"))
 
     env = DummyVecEnv([make_env])
@@ -90,6 +91,7 @@ def main(args):
         "w_soc": config.W_SOC,
         "w_soc_squared": config.W_SOC_SQUARED,
         "w_flicker": config.W_FLICKER,
+        "use_thermal": args.use_thermal,
         "continued_run": args.continue_from is not None,
         "continued_from": args.continue_from,
     }
@@ -168,6 +170,7 @@ def main(args):
 
     # Train the agent
     print("Starting Training...")
+    training_start_time = time.perf_counter()
     model.learn(
         total_timesteps=train_config["total_timesteps"],
         callback=[
@@ -177,8 +180,17 @@ def main(args):
             entropy_callback,
         ],
     )
+    training_duration_seconds = time.perf_counter() - training_start_time
+    training_duration_hms = str(
+        datetime.timedelta(seconds=int(training_duration_seconds))
+    )
+    train_config["training_duration_seconds"] = round(training_duration_seconds, 3)
+    train_config["training_duration_hms"] = training_duration_hms
 
-    print("Training finished.")
+    print(
+        f"Training finished in {training_duration_seconds:.2f}s "
+        f"({training_duration_hms})."
+    )
 
     # Save the final model
     model.save(os.path.join(log_dir, "ppo_emission_final"))
@@ -194,6 +206,7 @@ def main(args):
         os.path.join(log_dir, "ppo_emission_final"),
         eval_log_dir=log_dir,
         train_config=train_config,
+        use_thermal=args.use_thermal,
     )
 
 
@@ -213,6 +226,11 @@ if __name__ == "__main__":
         default="auto",
         help="Device for the PPO agent (e.g. 'cpu', 'cuda', 'auto'). "
         "Use 'cpu' when GPU is reserved for environment model inference.",
+    )
+    parser.add_argument(
+        "--use_thermal",
+        action="store_true",
+        help="Use EmissionControlEnvThermal instead of EmissionControlEnv.",
     )
     args = parser.parse_args()
 

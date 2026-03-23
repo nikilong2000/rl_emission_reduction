@@ -13,6 +13,7 @@ PG_MODEL_DIR = os.path.join(
 
 ICE_MODEL_DIR_ONNX = os.path.join(PROJECT_ROOT, "CTTC/Models/ICE")
 PG_MODEL_DIR_ONNX = os.path.join(PROJECT_ROOT, "CTTC/Models/Drivetrain")
+USE_ONNX = False
 
 TRAIN_DATA_DIR = os.path.join(PROJECT_ROOT, "02_rl_control/data_train")
 ## DIRECTORIES END

@@ -2,10 +2,12 @@ import os
 import sys
 import json
 import datetime
+import time
 import warnings
 import argparse
 import numpy as np
 import matplotlib
+
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
@@ -39,6 +41,7 @@ def env_creator(env_config):
 
     # Ensure TF eager execution is enabled (Ray + torch framework may disable it)
     import tensorflow as tf
+
     tf.config.run_functions_eagerly(True)
 
     from utils.platform_utils import configure_environment, configure_tf_devices
@@ -70,6 +73,7 @@ def env_creator(env_config):
 # ------------------------------------------------------------------ #
 #  Live training plots (equivalent to SB3 callbacks)                  #
 # ------------------------------------------------------------------ #
+
 
 def plot_training_progress(history, log_dir):
     """Plot reward curve (mirrors TrainingLivePlotCallback)."""
@@ -130,8 +134,12 @@ def plot_q_values(history, log_dir):
     fig, ax = plt.subplots(figsize=(10, 5))
     ax.plot(ts, history["mean_q"], label="Mean Q", color="tab:blue")
     ax.fill_between(
-        ts, history["min_q"], history["max_q"],
-        alpha=0.2, color="tab:blue", label="Min–Max Q",
+        ts,
+        history["min_q"],
+        history["max_q"],
+        alpha=0.2,
+        color="tab:blue",
+        label="Min–Max Q",
     )
     ax.set_xlabel("Timesteps")
     ax.set_ylabel("Q-value")
@@ -155,13 +163,19 @@ def plot_exploration_entropy(history, log_dir):
 
     window = max(1, len(entropy) // 20)
     smoothed = np.convolve(entropy, np.ones(window) / window, mode="valid")
-    t_smooth = timesteps[window - 1:]
+    t_smooth = timesteps[window - 1 :]
 
     fig, ax = plt.subplots(figsize=(10, 4))
-    ax.plot(timesteps, entropy, alpha=0.25, color="steelblue",
-            label="Per-episode entropy")
-    ax.plot(t_smooth, smoothed, color="steelblue", linewidth=2,
-            label=f"Moving avg (window={window})")
+    ax.plot(
+        timesteps, entropy, alpha=0.25, color="steelblue", label="Per-episode entropy"
+    )
+    ax.plot(
+        t_smooth,
+        smoothed,
+        color="steelblue",
+        linewidth=2,
+        label=f"Moving avg (window={window})",
+    )
     ax.set_xlabel("Training Timesteps")
     ax.set_ylabel("Mean State Entropy (nats)")
     ax.set_title(
@@ -171,8 +185,9 @@ def plot_exploration_entropy(history, log_dir):
     ax.legend()
     ax.grid(True, alpha=0.3)
     fig.tight_layout()
-    fig.savefig(os.path.join(log_dir, "exploration_entropy.png"),
-                bbox_inches="tight", dpi=120)
+    fig.savefig(
+        os.path.join(log_dir, "exploration_entropy.png"), bbox_inches="tight", dpi=120
+    )
     plt.close(fig)
 
 
@@ -220,6 +235,7 @@ def main(args):
 
     # Ensure TF eager execution before any TF model loading
     import tensorflow as tf
+
     tf.config.run_functions_eagerly(True)
 
     import config
@@ -232,9 +248,7 @@ def main(args):
     from recurrent_sac_model import RecurrentSACTorchModel, RecurrentSAC
 
     # Register custom model
-    ModelCatalog.register_custom_model(
-        "recurrent_sac_model", RecurrentSACTorchModel
-    )
+    ModelCatalog.register_custom_model("recurrent_sac_model", RecurrentSACTorchModel)
 
     # Create Log Directory
     base_log_dir = os.path.join(_RL_CONTROL_DIR, "logs", "sac_recurrent")
@@ -335,17 +349,24 @@ def main(args):
 
     num_iters = config.TOTAL_TRAINING_ITERATIONS
     print(f"Starting training for {num_iters} iterations...")
+    training_start_time = time.perf_counter()
 
     best_reward = -np.inf
     PLOT_FREQ = 5  # update plots every N iterations
 
     # History for live plots
     history = {
-        "timesteps": [], "rewards": [],
+        "timesteps": [],
+        "rewards": [],
         "loss_timesteps": [],
-        "critic_loss": [], "actor_loss": [], "alpha": [],
-        "mean_q": [], "min_q": [], "max_q": [],
-        "episode_entropy": [], "episode_entropy_ts": [],
+        "critic_loss": [],
+        "actor_loss": [],
+        "alpha": [],
+        "mean_q": [],
+        "min_q": [],
+        "max_q": [],
+        "episode_entropy": [],
+        "episode_entropy_ts": [],
     }
     # Keep track of which episode rewards we've already processed
     _seen_episode_count = 0
@@ -443,7 +464,16 @@ def main(args):
                 best_ckpt = algo.save(os.path.join(log_dir, "best_checkpoint"))
                 print(f"  New best checkpoint: {best_ckpt}")
 
-    print("Training finished.")
+    training_duration_seconds = time.perf_counter() - training_start_time
+    training_duration_hms = str(
+        datetime.timedelta(seconds=int(training_duration_seconds))
+    )
+    train_config["training_duration_seconds"] = round(training_duration_seconds, 3)
+    train_config["training_duration_hms"] = training_duration_hms
+    print(
+        f"Training finished in {training_duration_seconds:.2f}s "
+        f"({training_duration_hms})."
+    )
 
     # Final plots
     save_all_plots(history, log_dir)
@@ -463,6 +493,8 @@ def main(args):
     }
     with open(os.path.join(log_dir, "training_summary.json"), "w") as f:
         json.dump(summary, f, indent=4, default=str)
+    with open(os.path.join(log_dir, "train_config.json"), "w") as f:
+        json.dump(train_config, f, indent=4)
 
     algo.stop()
     ray.shutdown()

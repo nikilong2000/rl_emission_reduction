@@ -68,7 +68,7 @@ class SimpleMonitor:
 
         os.makedirs(os.path.dirname(monitor_path), exist_ok=True)
         with open(self.monitor_path, "w", newline="") as f:
-            f.write(f"#{{\"t_start\": {self.t_start}, \"env_id\": \"EmissionControlEnv\"}}\n")
+            f.write(f'#{{"t_start": {self.t_start}, "env_id": "EmissionControlEnv"}}\n')
             writer = csv.writer(f)
             writer.writerow(["r", "l", "t"])
 
@@ -219,7 +219,9 @@ def main(args):
 
     if args.continue_from:
         resolved_continue_path = resolve_model_path(args.continue_from)
-        print(f"Loading existing model from {resolved_continue_path} to continue training...")
+        print(
+            f"Loading existing model from {resolved_continue_path} to continue training..."
+        )
         agent.load_from_file(resolved_continue_path, load_optimizers=True)
 
         vec_norm_path = _find_vec_normalize_path(resolved_continue_path)
@@ -246,6 +248,7 @@ def main(args):
     episode_observations = []
 
     print("Starting PyTorch TorchRL Recurrent SAC Training...")
+    training_start_time = time.perf_counter()
     for step in range(1, config.TOTAL_TIMESTEPS + 1):
         if step < config.LEARNING_STARTS:
             _, actor_state = agent.select_action(
@@ -336,6 +339,13 @@ def main(args):
             print(f"Saved model checkpoint to {checkpoint_path}")
             print(f"Saved VecNormalize checkpoint to {vec_checkpoint_path}")
 
+    training_duration_seconds = time.perf_counter() - training_start_time
+    training_duration_hms = str(
+        datetime.timedelta(seconds=int(training_duration_seconds))
+    )
+    train_config["training_duration_seconds"] = round(training_duration_seconds, 3)
+    train_config["training_duration_hms"] = training_duration_hms
+
     replay_buffer.end_episode()
     _update_training_progress_plot(
         log_dir=log_dir,
@@ -357,7 +367,10 @@ def main(args):
     with open(os.path.join(log_dir, "train_config.json"), "w") as f:
         json.dump(train_config, f, indent=4)
 
-    print("Training finished.")
+    print(
+        f"Training finished in {training_duration_seconds:.2f}s "
+        f"({training_duration_hms})."
+    )
     print(f"Final model saved to {final_model_path}")
     print(f"Model and VecNormalize stats saved to {log_dir}")
 

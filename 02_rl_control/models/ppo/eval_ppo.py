@@ -19,6 +19,7 @@ sys.path.append(os.path.dirname(os.path.dirname(current_dir)))
 
 try:
     from ...env import EmissionControlEnv
+    from ...env_thermal import EmissionControlEnvThermal
     from ...plotting import (
         TrainingLivePlotCallback,
         plot_evaluation,
@@ -31,6 +32,7 @@ try:
     )
 except ImportError:
     from env import EmissionControlEnv
+    from env_thermal import EmissionControlEnvThermal
     from plotting import (
         TrainingLivePlotCallback,
         plot_evaluation,
@@ -84,7 +86,7 @@ def calculate_emissions_per_km(results, log_dir):
             f.write(f"Partial ({distance_km:.2f} km), {nox_per_km:.2f}, {nox_pass}\n")
 
 
-def evaluate_model(model_path, eval_log_dir=None, train_config=None):
+def evaluate_model(model_path, eval_log_dir=None, train_config=None, use_thermal=False):
     # Validate model path (Stable-Baselines3 usually adds .zip automatically, so we check both)
     if not (os.path.exists(model_path) or os.path.exists(model_path + ".zip")):
         print(f"Error: Model file '{model_path}' not found.")
@@ -116,7 +118,11 @@ def evaluate_model(model_path, eval_log_dir=None, train_config=None):
             "data_train",
             "WLTC.csv",
         )
-        return EmissionControlEnv(dataset_path=wltc_path)
+        return (
+            EmissionControlEnvThermal(dataset_path=wltc_path)
+            if use_thermal
+            else EmissionControlEnv(dataset_path=wltc_path)
+        )
 
     env = DummyVecEnv([make_env])
 
@@ -238,6 +244,7 @@ def evaluate_model(model_path, eval_log_dir=None, train_config=None):
 
     metrics = {
         "model_path": model_path,
+        "use_thermal": use_thermal,
     }
 
     continued_run = False
@@ -289,6 +296,12 @@ if __name__ == "__main__":
     parser.add_argument(
         "model_path", type=str, help="Path to the trained PPO model (.zip)"
     )
+    parser.add_argument(
+        "--use_thermal",
+        action="store_true",
+        default=False,
+        help="Use EmissionControlEnvThermal (10-dim obs with aftertreatment temps)",
+    )
     args = parser.parse_args()
 
     model_dir = os.path.dirname(os.path.abspath(args.model_path))
@@ -302,4 +315,13 @@ if __name__ == "__main__":
             print(f"Loaded train config from {candidate}")
             break
 
-    evaluate_model(args.model_path, eval_log_dir=model_dir, train_config=train_config)
+    use_thermal = args.use_thermal or bool(
+        train_config is not None and train_config.get("use_thermal", False)
+    )
+
+    evaluate_model(
+        args.model_path,
+        eval_log_dir=model_dir,
+        train_config=train_config,
+        use_thermal=use_thermal,
+    )

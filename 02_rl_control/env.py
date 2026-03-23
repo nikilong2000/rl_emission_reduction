@@ -1,23 +1,11 @@
-import gymnasium as gym
-from gymnasium import spaces
-import numpy as np
-import pandas as pd
-import tensorflow as tf
 import os
 import glob
 import random
-
-# from ONNX_Predict.utilities import load_network, set_states
-
-
-# try:
-#     from .utils.network_utils import load_network, set_states
-#     from . import config
-# except ImportError:
-#     from utils.network_utils import load_network, set_states
-#     import config
-
 import config
+import gymnasium as gym
+import numpy as np
+import pandas as pd
+from gymnasium import spaces
 
 # 16 dims for ICE
 _ICE_COLS = [
@@ -61,7 +49,26 @@ _ICE_DEFAULTS = [
 _PG_COLS = ["car_speed_kmph", "soc_1"]
 _PG_DEFAULTS = [0.0, 0.7]
 
-test = True
+_USE_ONNX = bool(getattr(config, "USE_ONNX", False))
+
+if _USE_ONNX:
+    try:
+        from ONNX_Predict.utilities import load_network, set_states
+    except ImportError:
+        print("Warning: ONNX_Predict.utilities not found!")
+
+    ice_dir = config.ICE_MODEL_DIR_ONNX
+    drivetrain_dir = config.PG_MODEL_DIR_ONNX
+    print("USING ONNX")
+else:
+    try:
+        from .utils.network_utils import load_network, set_states
+    except ImportError:
+        from utils.network_utils import load_network, set_states
+
+    ice_dir = config.ICE_MODEL_DIR
+    drivetrain_dir = config.PG_MODEL_DIR
+    print("USING TF2.18")
 
 
 class EmissionControlEnv(gym.Env):
@@ -75,6 +82,7 @@ class EmissionControlEnv(gym.Env):
         super().__init__()
 
         self.dataset_path = dataset_path
+        self.use_onnx = _USE_ONNX
 
         # loading csvs with speed trajectories
         all_files = glob.glob(os.path.join(config.TRAIN_DATA_DIR, "*.csv"))
@@ -92,26 +100,6 @@ class EmissionControlEnv(gym.Env):
         self.current_step = 0
 
         # load models
-        # TODO: Adjust for ONNX or TF2.18
-        self.use_onnx = True
-
-        if self.use_onnx:
-            print("USING ONNX")
-            try:
-                from ONNX_Predict.utilities import load_network, set_states
-            except ImportError:
-                print(
-                    "Warning: ONNX_Predict.utilities not found. Falling back to local utils.network_utils."
-                )
-
-            ice_dir = config.ICE_MODEL_DIR_ONNX
-            drivetrain_dir = config.PG_MODEL_DIR_ONNX
-        else:
-            from utils.network_utils import load_network, set_states
-
-            ice_dir = config.ICE_MODEL_DIR
-            drivetrain_dir = config.PG_MODEL_DIR
-
         self.load_network = load_network
         self.set_states = set_states
 

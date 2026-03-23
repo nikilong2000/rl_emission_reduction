@@ -191,7 +191,9 @@ class EpisodeReplayBuffer:
         if not self.episodes:
             raise ValueError("Replay buffer is empty.")
 
-        lengths = np.asarray([len(ep["rewards"]) for ep in self.episodes], dtype=np.int64)
+        lengths = np.asarray(
+            [len(ep["rewards"]) for ep in self.episodes], dtype=np.int64
+        )
         probs = lengths / lengths.sum()
         chosen_episode_indices = np.random.choice(
             len(self.episodes), size=batch_size, replace=True, p=probs
@@ -202,7 +204,9 @@ class EpisodeReplayBuffer:
 
         obs_batch = np.zeros((batch_size, sequence_length, obs_dim), dtype=np.float32)
         next_obs_batch = np.zeros_like(obs_batch)
-        action_batch = np.zeros((batch_size, sequence_length, action_dim), dtype=np.float32)
+        action_batch = np.zeros(
+            (batch_size, sequence_length, action_dim), dtype=np.float32
+        )
         reward_batch = np.zeros((batch_size, sequence_length, 1), dtype=np.float32)
         done_batch = np.zeros((batch_size, sequence_length, 1), dtype=np.float32)
         mask_batch = np.zeros((batch_size, sequence_length, 1), dtype=np.float32)
@@ -243,7 +247,9 @@ class EpisodeReplayBuffer:
 
 
 class RecurrentGaussianPolicy(nn.Module):
-    def __init__(self, obs_dim: int, action_dim: int, hidden_size: int, mlp_hidden_size: int):
+    def __init__(
+        self, obs_dim: int, action_dim: int, hidden_size: int, mlp_hidden_size: int
+    ):
         super().__init__()
         self.lstm = nn.LSTM(obs_dim, hidden_size, batch_first=True)
         self.mlp = nn.Sequential(
@@ -256,12 +262,16 @@ class RecurrentGaussianPolicy(nn.Module):
         self.log_std_head = nn.Linear(mlp_hidden_size, action_dim)
 
     def forward(
-        self, obs_seq: torch.Tensor, hidden_state: Optional[Tuple[torch.Tensor, torch.Tensor]] = None
+        self,
+        obs_seq: torch.Tensor,
+        hidden_state: Optional[Tuple[torch.Tensor, torch.Tensor]] = None,
     ) -> Tuple[torch.Tensor, torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
         lstm_out, hidden_out = self.lstm(obs_seq, hidden_state)
         features = self.mlp(lstm_out)
         mean = self.mean_head(features)
-        log_std = torch.clamp(self.log_std_head(features), min=LOG_STD_MIN, max=LOG_STD_MAX)
+        log_std = torch.clamp(
+            self.log_std_head(features), min=LOG_STD_MIN, max=LOG_STD_MAX
+        )
         return mean, log_std, hidden_out
 
     def sample(
@@ -293,7 +303,9 @@ class RecurrentGaussianPolicy(nn.Module):
 
 
 class RecurrentQNetwork(nn.Module):
-    def __init__(self, obs_dim: int, action_dim: int, hidden_size: int, mlp_hidden_size: int):
+    def __init__(
+        self, obs_dim: int, action_dim: int, hidden_size: int, mlp_hidden_size: int
+    ):
         super().__init__()
         self.lstm = nn.LSTM(obs_dim + action_dim, hidden_size, batch_first=True)
         self.mlp = nn.Sequential(
@@ -384,14 +396,18 @@ class TorchRLRecurrentSACAgent:
         self.target_q1.load_state_dict(self.q1.state_dict())
         self.target_q2.load_state_dict(self.q2.state_dict())
 
-        self.actor_optimizer = _make_adam(self.actor.parameters(), learning_rate, self.device)
+        self.actor_optimizer = _make_adam(
+            self.actor.parameters(), learning_rate, self.device
+        )
         critic_params = list(self.q1.parameters()) + list(self.q2.parameters())
         self.critic_optimizer = _make_adam(critic_params, learning_rate, self.device)
 
         self.ent_coef_mode = "auto" if ent_coef == "auto" else "fixed"
         if self.ent_coef_mode == "auto":
             self.log_alpha = torch.zeros(1, device=self.device, requires_grad=True)
-            self.alpha_optimizer = _make_adam([self.log_alpha], learning_rate, self.device)
+            self.alpha_optimizer = _make_adam(
+                [self.log_alpha], learning_rate, self.device
+            )
             self.fixed_alpha = None
         else:
             self.log_alpha = None
@@ -405,7 +421,9 @@ class TorchRLRecurrentSACAgent:
 
         self.total_updates = 0
 
-    def get_initial_actor_state(self, batch_size: int = 1) -> Tuple[torch.Tensor, torch.Tensor]:
+    def get_initial_actor_state(
+        self, batch_size: int = 1
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
         h = torch.zeros(1, batch_size, self.hidden_size, device=self.device)
         c = torch.zeros(1, batch_size, self.hidden_size, device=self.device)
         return h, c
@@ -461,7 +479,9 @@ class TorchRLRecurrentSACAgent:
             return value.to(self.device, non_blocking=True)
         return torch.as_tensor(batch[key], dtype=torch.float32, device=self.device)
 
-    def update(self, batch: Union[Dict[str, np.ndarray], "TensorDict"]) -> Dict[str, float]:
+    def update(
+        self, batch: Union[Dict[str, np.ndarray], "TensorDict"]
+    ) -> Dict[str, float]:
         obs = self._get_batch_tensor(batch, "obs")
         next_obs = self._get_batch_tensor(batch, "next_obs")
         actions = self._get_batch_tensor(batch, "actions")
@@ -472,10 +492,15 @@ class TorchRLRecurrentSACAgent:
         valid_count = torch.clamp(mask.sum(), min=1.0)
 
         with torch.no_grad():
-            next_actions, next_log_pi, _ = self.actor.sample(next_obs, deterministic=False)
+            next_actions, next_log_pi, _ = self.actor.sample(
+                next_obs, deterministic=False
+            )
             target_q1, _ = self.target_q1(next_obs, next_actions)
             target_q2, _ = self.target_q2(next_obs, next_actions)
-            min_target_q = torch.min(target_q1, target_q2) - self._alpha_tensor().detach() * next_log_pi
+            min_target_q = (
+                torch.min(target_q1, target_q2)
+                - self._alpha_tensor().detach() * next_log_pi
+            )
             target_q = rewards + (1.0 - dones) * self.gamma * min_target_q
 
         current_q1, _ = self.q1(obs, actions)
@@ -492,7 +517,9 @@ class TorchRLRecurrentSACAgent:
         q1_pi, _ = self.q1(obs, sampled_actions)
         q2_pi, _ = self.q2(obs, sampled_actions)
         min_q_pi = torch.min(q1_pi, q2_pi)
-        actor_loss = ((self._alpha_tensor().detach() * log_pi - min_q_pi) * mask).sum() / valid_count
+        actor_loss = (
+            (self._alpha_tensor().detach() * log_pi - min_q_pi) * mask
+        ).sum() / valid_count
 
         self.actor_optimizer.zero_grad(set_to_none=True)
         actor_loss.backward()
@@ -551,10 +578,14 @@ class TorchRLRecurrentSACAgent:
             "actor_optimizer_state": self.actor_optimizer.state_dict(),
             "critic_optimizer_state": self.critic_optimizer.state_dict(),
             "alpha_optimizer_state": (
-                self.alpha_optimizer.state_dict() if self.alpha_optimizer is not None else None
+                self.alpha_optimizer.state_dict()
+                if self.alpha_optimizer is not None
+                else None
             ),
             "log_alpha": (
-                self.log_alpha.detach().cpu().numpy() if self.log_alpha is not None else None
+                self.log_alpha.detach().cpu().numpy()
+                if self.log_alpha is not None
+                else None
             ),
             "total_updates": self.total_updates,
             "total_timesteps": total_timesteps,
@@ -562,14 +593,18 @@ class TorchRLRecurrentSACAgent:
         return payload
 
     def save(self, model_path: str, total_timesteps: int) -> str:
-        resolved_path = model_path if model_path.endswith(".zip") else model_path + ".zip"
+        resolved_path = (
+            model_path if model_path.endswith(".zip") else model_path + ".zip"
+        )
         directory = os.path.dirname(resolved_path)
         if directory:
             os.makedirs(directory, exist_ok=True)
         torch.save(self.checkpoint_dict(total_timesteps=total_timesteps), resolved_path)
         return resolved_path
 
-    def load_from_file(self, model_path: str, load_optimizers: bool = True) -> Dict[str, object]:
+    def load_from_file(
+        self, model_path: str, load_optimizers: bool = True
+    ) -> Dict[str, object]:
         resolved_path = resolve_model_path(model_path)
         payload = torch.load(resolved_path, map_location=self.device)
         self.actor.load_state_dict(payload["actor_state_dict"])
@@ -581,12 +616,17 @@ class TorchRLRecurrentSACAgent:
         if load_optimizers:
             self.actor_optimizer.load_state_dict(payload["actor_optimizer_state"])
             self.critic_optimizer.load_state_dict(payload["critic_optimizer_state"])
-            if self.ent_coef_mode == "auto" and payload["alpha_optimizer_state"] is not None:
+            if (
+                self.ent_coef_mode == "auto"
+                and payload["alpha_optimizer_state"] is not None
+            ):
                 self.alpha_optimizer.load_state_dict(payload["alpha_optimizer_state"])
 
         if self.ent_coef_mode == "auto" and payload["log_alpha"] is not None:
             self.log_alpha.data.copy_(
-                torch.as_tensor(payload["log_alpha"], dtype=torch.float32, device=self.device)
+                torch.as_tensor(
+                    payload["log_alpha"], dtype=torch.float32, device=self.device
+                )
             )
         if self.ent_coef_mode == "fixed" and payload["fixed_alpha"] is not None:
             self.fixed_alpha = float(payload["fixed_alpha"])
@@ -600,8 +640,10 @@ class TorchRLRecurrentSACAgent:
     ) -> Tuple["TorchRLRecurrentSACAgent", Dict[str, object]]:
         resolved_path = resolve_model_path(model_path)
         payload = torch.load(resolved_path, map_location=resolve_torch_device(device))
-        ent_coef = "auto" if payload.get("ent_coef_mode", "auto") == "auto" else payload.get(
-            "fixed_alpha", 0.2
+        ent_coef = (
+            "auto"
+            if payload.get("ent_coef_mode", "auto") == "auto"
+            else payload.get("fixed_alpha", 0.2)
         )
         agent = cls(
             obs_dim=int(payload["obs_dim"]),
@@ -611,7 +653,9 @@ class TorchRLRecurrentSACAgent:
             learning_rate=float(payload.get("learning_rate", 3e-4)),
             gamma=float(payload.get("gamma", 0.99)),
             tau=float(payload.get("tau", 0.005)),
-            target_entropy=float(payload.get("target_entropy", -int(payload["action_dim"]))),
+            target_entropy=float(
+                payload.get("target_entropy", -int(payload["action_dim"]))
+            ),
             ent_coef=ent_coef,
             device=device,
         )

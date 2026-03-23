@@ -180,9 +180,13 @@ class EmissionControlEnvThermal(EmissionControlEnv):
 
         # 2. Ambient conditions
         t_amb = (
-            self.df.loc[self.current_step, "T_amb_K"]
-            if "T_amb_K" in self.df.columns
-            else 298.0
+            self.df.loc[self.current_step, "t_amb_k"]
+            if "t_amb_k" in self.df.columns
+            else (
+                self.df.loc[self.current_step, "T_amb_K"]
+                if "T_amb_K" in self.df.columns
+                else 298.0
+            )
         )
         p_amb = (
             self.df.loc[self.current_step, "p_amb_bar"]
@@ -191,10 +195,15 @@ class EmissionControlEnvThermal(EmissionControlEnv):
         )
 
         # 3. ICE prediction (single call — advances LSTM state once)
-        ice_inputs = np.array([[ice_speed_rpm, fuel_mg, t_amb, p_amb]])
+        ice_inputs = np.array(
+            [[ice_speed_rpm, fuel_mg, t_amb, p_amb]], dtype=np.float32
+        )
         ice_in_scaled = self.ice_in_scaler.transform(ice_inputs).reshape(1, 1, -1)
         ice_pred_scaled = self.ice_predict_main(ice_in_scaled)
-        ice_pred = self.ice_out_scaler.inverse_transform(ice_pred_scaled.numpy()[0])
+        if self.use_onnx:
+            ice_pred = self.ice_out_scaler.inverse_transform(ice_pred_scaled[0])
+        else:
+            ice_pred = self.ice_out_scaler.inverse_transform(ice_pred_scaled.numpy()[0])
 
         ice_torque = ice_pred[0][0]
         nox_tp = ice_pred[0][6]
@@ -205,10 +214,15 @@ class EmissionControlEnvThermal(EmissionControlEnv):
         t_gas_tp = float(ice_pred[0][_IDX_T_GAS_TP])
 
         # 4. Drivetrain prediction
-        pg_inputs = np.array([[ice_speed_rpm, ice_torque, em2_torque_nm, brake_perc]])
+        pg_inputs = np.array(
+            [[ice_speed_rpm, ice_torque, em2_torque_nm, brake_perc]], dtype=np.float32
+        )
         pg_in_scaled = self.pg_in_scaler.transform(pg_inputs).reshape(1, 1, -1)
         pg_pred_scaled = self.pg_predict_main(pg_in_scaled)
-        pg_pred = self.pg_out_scaler.inverse_transform(pg_pred_scaled.numpy()[0])
+        if self.use_onnx:
+            pg_pred = self.pg_out_scaler.inverse_transform(pg_pred_scaled[0])
+        else:
+            pg_pred = self.pg_out_scaler.inverse_transform(pg_pred_scaled.numpy()[0])
 
         car_speed = pg_pred[0][0]
         soc = pg_pred[0][1]
@@ -220,7 +234,7 @@ class EmissionControlEnvThermal(EmissionControlEnv):
         soc_error_squared = (soc - self.initial_soc) ** 2
 
         norm_speed = 50.0
-        norm_emission = 0.14
+        norm_emission = 0.4
         norm_fuel = 70.0
         norm_brake = 100.0
 
