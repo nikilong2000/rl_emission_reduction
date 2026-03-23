@@ -20,12 +20,6 @@ import numpy as np
 from gymnasium import spaces
 
 try:
-    from . import config
-except ImportError:
-    import config
-
-
-try:
     from .env import EmissionControlEnv
 except ImportError:
     from env import EmissionControlEnv
@@ -64,8 +58,12 @@ class EmissionControlEnvThermal(EmissionControlEnv):
       [9] T_gas_tp_K       — exhaust gas temp at tailpipe    (PC3 representative)
     """
 
-    def __init__(self, render_mode=None, dataset_path=None):
-        super().__init__(render_mode=render_mode, dataset_path=dataset_path)
+    def __init__(self, render_mode=None, dataset_path=None, config_module=None):
+        super().__init__(
+            render_mode=render_mode,
+            dataset_path=dataset_path,
+            config_module=config_module,
+        )
 
         # Extend obs bounds with the three thermal variables
         self.obs_low = np.append(
@@ -242,15 +240,15 @@ class EmissionControlEnvThermal(EmissionControlEnv):
         safe_emission_penalty = min(nox_tp / norm_emission, 1.0)
 
         reward = 0.0
-        reward -= config.W_SPEED * safe_speed_penalty
-        reward -= config.W_EMISSION * safe_emission_penalty
-        reward -= config.W_FUEL * (fuel_mg / norm_fuel)
-        reward -= config.W_BRAKE * (brake_perc / norm_brake)
-        reward -= config.W_SOC * soc_error
-        reward -= config.W_SOC_SQUARED * soc_error_squared
+        reward -= self.config.W_SPEED * safe_speed_penalty
+        reward -= self.config.W_EMISSION * safe_emission_penalty
+        reward -= self.config.W_FUEL * (fuel_mg / norm_fuel)
+        reward -= self.config.W_BRAKE * (brake_perc / norm_brake)
+        reward -= self.config.W_SOC * soc_error
+        reward -= self.config.W_SOC_SQUARED * soc_error_squared
 
         if engine_on and not self.last_engine_on:
-            reward -= config.W_FLICKER
+            reward -= self.config.W_FLICKER
 
         # 6. Update state
         self.current_step += 1

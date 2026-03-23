@@ -70,7 +70,7 @@ def main(args):
     env_cls = EmissionControlEnvThermal if args.use_thermal else EmissionControlEnv
 
     def make_env():
-        e = env_cls()
+        e = env_cls(config_module=config)
         return Monitor(e, os.path.join(log_dir, "monitor.csv"))
 
     env = DummyVecEnv([make_env])
@@ -99,6 +99,7 @@ def main(args):
         "w_soc": config.W_SOC,
         "w_soc_squared": config.W_SOC_SQUARED,
         "w_flicker": config.W_FLICKER,
+        "use_onnx": bool(getattr(config, "USE_ONNX", False)),
         "continued_run": args.continue_from is not None,
         "continued_from": args.continue_from,
     }

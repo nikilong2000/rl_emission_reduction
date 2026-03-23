@@ -30,6 +30,7 @@ try:
         plot_state_action_occupancy,
         plot_temporal_state_heatmap,
     )
+    from ...utils.evaluation_utils import calculate_emissions_per_km
 except ImportError:
     from env import EmissionControlEnv
     from env_thermal import EmissionControlEnvThermal
@@ -43,47 +44,9 @@ except ImportError:
         plot_state_action_occupancy,
         plot_temporal_state_heatmap,
     )
+    from utils.evaluation_utils import calculate_emissions_per_km
 
-
-def calculate_emissions_per_km(results, log_dir):
-    speed_actual = np.array(results["speed_actual"])
-    nox_gs = np.array(results["nox"])
-
-    dt = 0.5  # 1 step = 0.5 seconds
-
-    distance_km = 0.0
-    accumulated_nox_mg = 0.0
-
-    km_counter = 1
-
-    out_path = os.path.join(log_dir, "emissions_per_km.txt")
-    with open(out_path, "w") as f:
-        f.write("Kilometer, NOx (mg/km), NOx_Pass (<=80 mg/km)\n")
-
-        for v, nox in zip(speed_actual, nox_gs):
-            dist_step = v * dt / 3600.0
-
-            # Emissions in mg for this step = rate (g/s) * dt (s) * 1000 (mg/g)
-            nox_step_mg = nox * dt * 1000.0
-
-            distance_km += dist_step
-            accumulated_nox_mg += nox_step_mg
-
-            if distance_km >= 1.0:
-                nox_pass = accumulated_nox_mg <= 80.0
-
-                f.write(f"{km_counter}, {accumulated_nox_mg:.2f}, {nox_pass}\n")
-
-                # Reset accumulators
-                distance_km = 0.0
-                accumulated_nox_mg = 0.0
-                km_counter += 1
-
-        # Handle the remaining partial kilometer
-        if distance_km > 0.1:  # Only report if at least 100m driven
-            nox_per_km = accumulated_nox_mg / distance_km
-            nox_pass = nox_per_km <= 80.0
-            f.write(f"Partial ({distance_km:.2f} km), {nox_per_km:.2f}, {nox_pass}\n")
+import config
 
 
 def evaluate_model(model_path, eval_log_dir=None, train_config=None, use_thermal=False):
@@ -119,9 +82,9 @@ def evaluate_model(model_path, eval_log_dir=None, train_config=None, use_thermal
             "WLTC.csv",
         )
         return (
-            EmissionControlEnvThermal(dataset_path=wltc_path)
+            EmissionControlEnvThermal(dataset_path=wltc_path, config_module=config)
             if use_thermal
-            else EmissionControlEnv(dataset_path=wltc_path)
+            else EmissionControlEnv(dataset_path=wltc_path, config_module=config)
         )
 
     env = DummyVecEnv([make_env])

@@ -1,11 +1,15 @@
 import os
+import sys
 import glob
 import random
-import config
+import importlib
 import gymnasium as gym
 import numpy as np
 import pandas as pd
 from gymnasium import spaces
+
+current_dir = os.path.dirname(os.path.abspath(__file__))
+sys.path.append(os.path.dirname(os.path.dirname(current_dir)))
 
 # 16 dims for ICE
 _ICE_COLS = [
@@ -49,26 +53,47 @@ _ICE_DEFAULTS = [
 _PG_COLS = ["car_speed_kmph", "soc_1"]
 _PG_DEFAULTS = [0.0, 0.7]
 
-_USE_ONNX = bool(getattr(config, "USE_ONNX", False))
+# bounds for soc because soc == 0 or 1 are invalid values that the plant lstms are not able to handle
+_SOC_LOWER_BOUND = 0.02
+_SOC_UPPER_BOUND = 0.98
 
-if _USE_ONNX:
+
+def _load_default_config_module():
+    if "config" in sys.modules:
+        return sys.modules["config"]
     try:
-        from ONNX_Predict.utilities import load_network, set_states
-    except ImportError:
-        print("Warning: ONNX_Predict.utilities not found!")
+        return importlib.import_module("config")
+    except ImportError as exc:
+        raise ImportError(
+            "Could not resolve a config module. Pass config_module=... when "
+            "creating EmissionControlEnv."
+        ) from exc
 
-    ice_dir = config.ICE_MODEL_DIR_ONNX
-    drivetrain_dir = config.PG_MODEL_DIR_ONNX
-    print("USING ONNX")
-else:
+
+def _resolve_model_backend(config_module):
+    use_onnx = bool(getattr(config_module, "USE_ONNX", False))
+
+    if use_onnx:
+        try:
+            from ONNX_Predict.utilities import load_network, set_states
+
+            ice_dir = config_module.ICE_MODEL_DIR_ONNX
+            drivetrain_dir = config_module.PG_MODEL_DIR_ONNX
+            print("USING ONNX")
+            return use_onnx, load_network, set_states, ice_dir, drivetrain_dir
+        except ImportError:
+            print("Warning: ONNX_Predict.utilities not found. Falling back to TF2.18.")
+            use_onnx = False
+
     try:
         from .utils.network_utils import load_network, set_states
     except ImportError:
         from utils.network_utils import load_network, set_states
 
-    ice_dir = config.ICE_MODEL_DIR
-    drivetrain_dir = config.PG_MODEL_DIR
+    ice_dir = config_module.ICE_MODEL_DIR
+    drivetrain_dir = config_module.PG_MODEL_DIR
     print("USING TF2.18")
+    return use_onnx, load_network, set_states, ice_dir, drivetrain_dir
 
 
 class EmissionControlEnv(gym.Env):
@@ -78,33 +103,45 @@ class EmissionControlEnv(gym.Env):
 
     metadata = {"render_modes": ["human"]}
 
-    def __init__(self, render_mode=None, dataset_path=None):
+    def __init__(self, render_mode=None, dataset_path=None, config_module=None):
         super().__init__()
 
         self.dataset_path = dataset_path
-        self.use_onnx = _USE_ONNX
+        self.config = (
+            config_module
+            if config_module is not None
+            else _load_default_config_module()
+        )
+
+        (
+            self.use_onnx,
+            self.load_network,
+            self.set_states,
+            self.ice_model_dir,
+            self.drivetrain_model_dir,
+        ) = _resolve_model_backend(self.config)
 
         # loading csvs with speed trajectories
-        all_files = glob.glob(os.path.join(config.TRAIN_DATA_DIR, "*.csv"))
+        all_files = glob.glob(os.path.join(self.config.TRAIN_DATA_DIR, "*.csv"))
         self.data_files = [
             f
+            # for f in all_files
+            # if os.path.basename(f) in ("WLTC_high.csv", "WLTC_low.csv")
             for f in all_files
             if os.path.basename(f).startswith("drivetrain")
             or os.path.basename(f) in ("WLTC_high.csv", "WLTC_low.csv")
         ]
         if not self.data_files:
-            raise ValueError(f"No valid CSV files found in {config.TRAIN_DATA_DIR}")
+            raise ValueError(
+                f"No valid CSV files found in {self.config.TRAIN_DATA_DIR}"
+            )
 
         self.df = None
         self.max_steps = 0
         self.current_step = 0
 
-        # load models
-        self.load_network = load_network
-        self.set_states = set_states
-
         print("Loading ICE Model...")
-        self.ice_tuple = self.load_network(ice_dir)
+        self.ice_tuple = self.load_network(self.ice_model_dir)
         (
             self.ice_main,
             self.ice_init,
@@ -115,7 +152,7 @@ class EmissionControlEnv(gym.Env):
         ) = self.ice_tuple
 
         print("Loading Drivetrain (PG) Model...")
-        self.pg_tuple = self.load_network(drivetrain_dir)
+        self.pg_tuple = self.load_network(self.drivetrain_model_dir)
         (
             self.pg_main,
             self.pg_init,
@@ -296,6 +333,10 @@ class EmissionControlEnv(gym.Env):
         soc = pg_pred[0][1]
 
         # 6. Calculate Reward
+
+        # Check for catastrophic boundary breach
+        soc_boundary_breach = soc <= _SOC_LOWER_BOUND or soc >= _SOC_UPPER_BOUND
+
         target_speed = self.df.loc[self.current_step, self.target_col_name()]
 
         speed_error = abs(target_speed - car_speed)
@@ -303,11 +344,10 @@ class EmissionControlEnv(gym.Env):
         soc_error_squared = (soc - self.initial_soc) ** 2
 
         # Normalization factors to bring terms roughly into [0, 1] range
-        norm_speed = 50.0  # Max expected practical speed error (km/h)
+        norm_speed = 155.0  # Max expected practical speed error (km/h)
         norm_emission = 0.4  # Typical high combined tailpipe emissions (g/s)
         norm_fuel = 70.0  # Max fuel injection per step from config (mg)
         norm_brake = 100.0  # Max brake percentage bounds (%)
-        norm_soc = 0.3  # Typical maximum allowed SOC drift scale
 
         # To cap penalties in case of hallucinations
         safe_speed_penalty = min(speed_error / norm_speed, 1.0)
@@ -316,15 +356,18 @@ class EmissionControlEnv(gym.Env):
         reward = 0.0
 
         ## DO NOT EDIT REWARDS HERE; INSTEAD IN config.py!!!!
-        reward -= config.W_SPEED * safe_speed_penalty
-        reward -= config.W_EMISSION * safe_emission_penalty
-        reward -= config.W_FUEL * (fuel_mg / norm_fuel)
-        reward -= config.W_BRAKE * (brake_perc / norm_brake)
-        reward -= config.W_SOC * soc_error
-        reward -= config.W_SOC_SQUARED * soc_error_squared
+        reward -= self.config.W_SPEED * safe_speed_penalty
+        reward -= self.config.W_EMISSION * safe_emission_penalty
+        reward -= self.config.W_FUEL * (fuel_mg / norm_fuel)
+        reward -= self.config.W_BRAKE * (brake_perc / norm_brake)
+        reward -= self.config.W_SOC * soc_error
+        reward -= self.config.W_SOC_SQUARED * soc_error_squared
 
         if engine_on and not self.last_engine_on:
-            reward -= config.W_FLICKER
+            reward -= self.config.W_FLICKER
+
+        if soc_boundary_breach:
+            reward -= 100.0
 
         # 7. Update State
         self.current_step += 1
@@ -337,7 +380,7 @@ class EmissionControlEnv(gym.Env):
         terminated = False
         truncated = False
 
-        if self.current_step >= self.max_steps - 1:
+        if self.current_step >= self.max_steps - 1 or soc_boundary_breach:
             terminated = True
 
         next_target_speed = (

@@ -1,0 +1,23 @@
+{
+    "learning_rate": 0.0003,
+    "n_steps": 2048,
+    "batch_size": 256,
+    "n_epochs": 10,
+    "gamma": 0.99,
+    "gae_lambda": 0.95,
+    "clip_range": 0.2,
+    "total_timesteps": 800000,
+    "w_speed": 1.5,
+    "w_emission": 0.0,
+    "w_fuel": 0.0,
+    "w_brake": 0.0,
+    "w_soc": 0.0,
+    "w_soc_squared": 0.0,
+    "w_flicker": 0.0,
+    "use_onnx": false,
+    "use_thermal": false,
+    "continued_run": false,
+    "continued_from": null,
+    "training_duration_seconds": 1041.438,
+    "training_duration_hms": "0:17:21"
+}

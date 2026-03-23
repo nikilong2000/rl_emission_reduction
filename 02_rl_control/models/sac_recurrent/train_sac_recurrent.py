@@ -52,11 +52,11 @@ def env_creator(env_config):
     if env_config.get("use_thermal", False):
         from env_thermal import EmissionControlEnvThermal
 
-        base_env = EmissionControlEnvThermal()
+        base_env = EmissionControlEnvThermal(config_module=config)
     else:
         from env import EmissionControlEnv
 
-        base_env = EmissionControlEnv()
+        base_env = EmissionControlEnv(config_module=config)
 
     # Clip observations to declared bounds (env simulation can slightly exceed them)
     return gym.wrappers.TransformObservation(
@@ -336,6 +336,7 @@ def main(args):
         "w_soc": config.W_SOC,
         "w_soc_squared": config.W_SOC_SQUARED,
         "w_flicker": config.W_FLICKER,
+        "use_onnx": bool(getattr(config, "USE_ONNX", False)),
     }
     with open(os.path.join(log_dir, "train_config.json"), "w") as f:
         json.dump(train_config, f, indent=4)

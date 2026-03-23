@@ -12,12 +12,18 @@ PG_MODEL_DIR = os.path.join(
 )
 ICE_MODEL_DIR_ONNX = os.path.join(PROJECT_ROOT, "CTTC/Models/ICE")
 PG_MODEL_DIR_ONNX = os.path.join(PROJECT_ROOT, "CTTC/Models/Drivetrain")
-USE_ONNX = False
 TRAIN_DATA_DIR = os.path.join(PROJECT_ROOT, "02_rl_control/data")
 ## DIRECTORIES END
 ############################
 
 ## TRAINING START
+# Runtime Selection
+USE_ONNX = False
+
+# Training Duration
+TOTAL_TRAINING_ITERATIONS = 500
+CHECKPOINT_FREQ = 25
+
 # SAC Hyperparameters
 LEARNING_RATE = 3e-4
 BUFFER_SIZE = 200_000
@@ -37,9 +43,6 @@ FCNET_HIDDENS = [256, 256]
 NUM_ENV_RUNNERS = 0
 ROLLOUT_FRAGMENT_LENGTH = 200
 
-# Training Duration
-TOTAL_TRAINING_ITERATIONS = 500
-CHECKPOINT_FREQ = 25
 
 # Reward Weights (matching existing SAC config)
 W_SPEED = 1.0

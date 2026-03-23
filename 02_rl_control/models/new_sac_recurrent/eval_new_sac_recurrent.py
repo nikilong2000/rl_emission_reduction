@@ -33,6 +33,7 @@ try:
         RunningMeanStd,
         resolve_model_path,
     )
+    from ...utils.evaluation_utils import calculate_emissions_per_km
 except ImportError:
     from env import EmissionControlEnv
     from env_thermal import EmissionControlEnvThermal
@@ -51,39 +52,7 @@ except ImportError:
         RunningMeanStd,
         resolve_model_path,
     )
-
-
-def calculate_emissions_per_km(results, log_dir):
-    speed_actual = np.array(results["speed_actual"])
-    nox_gs = np.array(results["nox"])
-
-    dt = 0.5
-    distance_km = 0.0
-    accumulated_nox_mg = 0.0
-    km_counter = 1
-
-    out_path = os.path.join(log_dir, "emissions_per_km.txt")
-    with open(out_path, "w") as f:
-        f.write("Kilometer, NOx (mg/km), NOx_Pass (<=80 mg/km)\n")
-
-        for v, nox in zip(speed_actual, nox_gs):
-            dist_step = v * dt / 3600.0
-            nox_step_mg = nox * dt * 1000.0
-
-            distance_km += dist_step
-            accumulated_nox_mg += nox_step_mg
-
-            if distance_km >= 1.0:
-                nox_pass = accumulated_nox_mg <= 80.0
-                f.write(f"{km_counter}, {accumulated_nox_mg:.2f}, {nox_pass}\n")
-                distance_km = 0.0
-                accumulated_nox_mg = 0.0
-                km_counter += 1
-
-        if distance_km > 0.1:
-            nox_per_km = accumulated_nox_mg / distance_km
-            nox_pass = nox_per_km <= 80.0
-            f.write(f"Partial ({distance_km:.2f} km), {nox_per_km:.2f}, {nox_pass}\n")
+    from utils.evaluation_utils import calculate_emissions_per_km
 
 
 def _find_vec_normalize_path(model_path: str) -> str:
@@ -135,9 +104,9 @@ def evaluate_model(
     )
 
     env = (
-        EmissionControlEnvThermal(dataset_path=wltc_path)
+        EmissionControlEnvThermal(dataset_path=wltc_path, config_module=config)
         if use_thermal
-        else EmissionControlEnv(dataset_path=wltc_path)
+        else EmissionControlEnv(dataset_path=wltc_path, config_module=config)
     )
 
     normalizer = None
@@ -205,7 +174,9 @@ def evaluate_model(
         total_reward += reward
 
         eval_results["speed_actual"].append(float(obs[0]))
-        eval_results["speed_target"].append(float(info.get("target_speed", obs[0] + obs[1])))
+        eval_results["speed_target"].append(
+            float(info.get("target_speed", obs[0] + obs[1]))
+        )
         eval_results["soc"].append(float(obs[2]))
         eval_results["ice_torque"].append(float(obs[3]))
         eval_results["nox"].append(float(obs[4]))
@@ -293,7 +264,9 @@ def evaluate_model(
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Evaluate a trained Recurrent SAC model.")
+    parser = argparse.ArgumentParser(
+        description="Evaluate a trained Recurrent SAC model."
+    )
     parser.add_argument(
         "model_path", type=str, help="Path to the trained Recurrent SAC model (.zip)"
     )

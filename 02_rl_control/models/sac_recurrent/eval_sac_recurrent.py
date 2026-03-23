@@ -26,7 +26,13 @@ import warnings
 import numpy as np
 import pandas as pd
 import matplotlib
+
 matplotlib.use("Agg")
+
+try:
+    from ...utils.evaluation_utils import calculate_emissions_per_km
+except ImportError:
+    from utils.evaluation_utils import calculate_emissions_per_km
 
 warnings.filterwarnings(
     "ignore",
@@ -44,6 +50,7 @@ _RL_DIR = _RL_CONTROL_DIR
 #  Environment creator (identical to training)                        #
 # ------------------------------------------------------------------ #
 
+
 def env_creator(env_config):
     """Create environment — identical to the one used during training."""
     import sys as _sys
@@ -60,6 +67,7 @@ def env_creator(env_config):
     import config  # noqa: F811
 
     import tensorflow as tf
+
     tf.config.run_functions_eagerly(True)
 
     from utils.platform_utils import configure_environment, configure_tf_devices
@@ -71,13 +79,15 @@ def env_creator(env_config):
         from env_thermal import EmissionControlEnvThermal
 
         base_env = EmissionControlEnvThermal(
-            dataset_path=env_config.get("dataset_path")
+            dataset_path=env_config.get("dataset_path"),
+            config_module=config,
         )
     else:
         from env import EmissionControlEnv
 
         base_env = EmissionControlEnv(
-            dataset_path=env_config.get("dataset_path")
+            dataset_path=env_config.get("dataset_path"),
+            config_module=config,
         )
 
     return gym.wrappers.TransformObservation(
@@ -94,6 +104,7 @@ def env_creator(env_config):
 # ------------------------------------------------------------------ #
 #  Resolve checkpoint path                                            #
 # ------------------------------------------------------------------ #
+
 
 def _resolve_checkpoint_dir(path: str) -> str:
     """Accept a checkpoint *directory* or the rllib_checkpoint.json *file*
@@ -116,6 +127,7 @@ def _resolve_checkpoint_dir(path: str) -> str:
 #  Build algorithm from config + restore policy weights               #
 # ------------------------------------------------------------------ #
 
+
 def _build_and_restore(checkpoint_dir: str, use_thermal: bool):
     """Build a fresh RecurrentSAC, then load policy weights from checkpoint.
 
@@ -129,9 +141,7 @@ def _build_and_restore(checkpoint_dir: str, use_thermal: bool):
 
     from recurrent_sac_model import RecurrentSACTorchModel, RecurrentSAC
 
-    ModelCatalog.register_custom_model(
-        "recurrent_sac_model", RecurrentSACTorchModel
-    )
+    ModelCatalog.register_custom_model("recurrent_sac_model", RecurrentSACTorchModel)
     register_env("EmissionControlEnv", env_creator)
 
     # Load the training config to reconstruct the same algorithm
@@ -139,9 +149,7 @@ def _build_and_restore(checkpoint_dir: str, use_thermal: bool):
     train_cfg_path = os.path.join(run_dir, "train_config.json")
     if not os.path.exists(train_cfg_path):
         # Might be nested one more level (checkpoints/<name>)
-        train_cfg_path = os.path.join(
-            os.path.dirname(run_dir), "train_config.json"
-        )
+        train_cfg_path = os.path.join(os.path.dirname(run_dir), "train_config.json")
     if os.path.exists(train_cfg_path):
         with open(train_cfg_path) as f:
             tcfg = json.load(f)
@@ -201,9 +209,7 @@ def _build_and_restore(checkpoint_dir: str, use_thermal: bool):
         checkpoint_dir, "policies", "default_policy", "policy_state.pkl"
     )
     if not os.path.exists(policy_pkl):
-        raise FileNotFoundError(
-            f"Policy state not found at {policy_pkl}"
-        )
+        raise FileNotFoundError(f"Policy state not found at {policy_pkl}")
 
     with open(policy_pkl, "rb") as f:
         policy_state = pickle.load(f)
@@ -219,49 +225,9 @@ def _build_and_restore(checkpoint_dir: str, use_thermal: bool):
 
 
 # ------------------------------------------------------------------ #
-#  Emission compliance                                                #
-# ------------------------------------------------------------------ #
-
-def calculate_emissions_per_km(results, log_dir):
-    """Per-kilometre NOx compliance check (EU Euro 6: ≤80 mg/km)."""
-    speed_actual = np.array(results["speed_actual"])
-    nox_gs = np.array(results["nox"])
-    dt = 0.5
-
-    distance_km = 0.0
-    accumulated_nox_mg = 0.0
-    km_counter = 1
-
-    out_path = os.path.join(log_dir, "emissions_per_km.txt")
-    with open(out_path, "w") as f:
-        f.write("Kilometer, NOx (mg/km), NOx_Pass (<=80 mg/km)\n")
-
-        for v, nox in zip(speed_actual, nox_gs):
-            dist_step = v * dt / 3600.0
-            nox_step_mg = nox * dt * 1000.0
-            distance_km += dist_step
-            accumulated_nox_mg += nox_step_mg
-
-            if distance_km >= 1.0:
-                nox_pass = accumulated_nox_mg <= 80.0
-                f.write(f"{km_counter}, {accumulated_nox_mg:.2f}, {nox_pass}\n")
-                distance_km = 0.0
-                accumulated_nox_mg = 0.0
-                km_counter += 1
-
-        if distance_km > 0.1:
-            nox_per_km = accumulated_nox_mg / distance_km
-            nox_pass = nox_per_km <= 80.0
-            f.write(
-                f"Partial ({distance_km:.2f} km), {nox_per_km:.2f}, {nox_pass}\n"
-            )
-
-    print(f"Emission compliance saved to {out_path}")
-
-
-# ------------------------------------------------------------------ #
 #  Main evaluation                                                    #
 # ------------------------------------------------------------------ #
+
 
 def evaluate_model(
     checkpoint_path,
@@ -270,6 +236,7 @@ def evaluate_model(
     use_thermal=False,
 ):
     import tensorflow as tf
+
     tf.config.run_functions_eagerly(True)
 
     import ray
@@ -292,9 +259,7 @@ def evaluate_model(
     print("Algorithm restored successfully.")
 
     # Create a local env for deterministic WLTC rollout
-    env = env_creator(
-        {"use_thermal": use_thermal, "dataset_path": wltc_path}
-    )
+    env = env_creator({"use_thermal": use_thermal, "dataset_path": wltc_path})
 
     if eval_log_dir is None:
         base_log_dir = os.path.join(_RL_CONTROL_DIR, "logs", "sac_recurrent")
@@ -337,9 +302,7 @@ def evaluate_model(
     # ── Deterministic rollout ──
     step_count = 0
     while not done:
-        action, state, _ = algo.compute_single_action(
-            obs, state=state, explore=False
-        )
+        action, state, _ = algo.compute_single_action(obs, state=state, explore=False)
         obs, reward, terminated, truncated, info = env.step(action)
         done = terminated or truncated
         total_reward += reward
@@ -354,12 +317,8 @@ def evaluate_model(
         eval_results["nox"].append(float(info.get("nox", obs[4])))
         eval_results["fuel"].append(float(info.get("fuel", 0.0)))
         eval_results["engine_on"].append(bool(info.get("engine_on", False)))
-        eval_results["ice_speed_rpm"].append(
-            float(info.get("ice_speed_rpm", 0.0))
-        )
-        eval_results["em2_torque_nm"].append(
-            float(info.get("em2_torque_nm", 0.0))
-        )
+        eval_results["ice_speed_rpm"].append(float(info.get("ice_speed_rpm", 0.0)))
+        eval_results["em2_torque_nm"].append(float(info.get("em2_torque_nm", 0.0)))
         eval_results["brake_perc"].append(float(info.get("brake_perc", 0.0)))
 
         if use_thermal:
@@ -454,17 +413,13 @@ def evaluate_model(
     plot_actions(eval_results, log_dir, window_start=1, window_size=3600)
     print("  ✓ action_results.png")
 
-    plot_state_visitation_1d(
-        [eval_results], ["SAC_Recurrent"], log_dir
-    )
+    plot_state_visitation_1d([eval_results], ["SAC_Recurrent"], log_dir)
     print("  ✓ state_visitation_1d.png")
 
     plot_state_visitation_2d(eval_results, log_dir)
     print("  ✓ state_visitation_2d.png")
 
-    plot_action_distribution(
-        [eval_results], ["SAC_Recurrent"], log_dir
-    )
+    plot_action_distribution([eval_results], ["SAC_Recurrent"], log_dir)
     print("  ✓ action_distribution.png")
 
     plot_state_action_occupancy(eval_results, log_dir)

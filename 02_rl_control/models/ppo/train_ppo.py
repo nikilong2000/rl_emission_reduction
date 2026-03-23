@@ -2,55 +2,32 @@ import os
 import time
 import json
 import datetime
-import gymnasium as gym
-import numpy as np
-import pandas as pd
-import matplotlib.pyplot as plt
 from stable_baselines3 import PPO
 from stable_baselines3.common.monitor import Monitor
-from stable_baselines3.common.callbacks import BaseCallback, CheckpointCallback
+from stable_baselines3.common.callbacks import CheckpointCallback
 import warnings
 import argparse
-
-
-# Suppress sklearn warnings about feature names
-warnings.filterwarnings(
-    "ignore",
-    message="X does not have valid feature names, but MinMaxScaler was fitted with feature names",
-)
-
-# Adjust sys.path to ensure imports work if running from this directory
 import sys
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.dirname(os.path.dirname(current_dir)))
 
-try:
-    from ...env import EmissionControlEnv
-    from ...env_thermal import EmissionControlEnvThermal
-    from ...plotting import (
-        TrainingLivePlotCallback,
-        plot_evaluation,
-        plot_actions,
-        ExplorationEntropyCallback,
-    )
-    from . import config
-    from .eval_ppo import evaluate_model
-    from ...utils import safety_utils
-    from ...utils.checkpoint_utils import VecNormalizeCheckpointCallback
-except ImportError:
-    from env import EmissionControlEnv
-    from env_thermal import EmissionControlEnvThermal
-    from plotting import (
-        TrainingLivePlotCallback,
-        plot_evaluation,
-        plot_actions,
-        ExplorationEntropyCallback,
-    )
-    import config
-    from eval_ppo import evaluate_model
-    from utils import safety_utils
-    from utils.checkpoint_utils import VecNormalizeCheckpointCallback
+from env import EmissionControlEnv
+from env_thermal import EmissionControlEnvThermal
+from plotting import (
+    TrainingLivePlotCallback,
+    ExplorationEntropyCallback,
+)
+import config
+from eval_ppo import evaluate_model
+from utils import safety_utils
+from utils.checkpoint_utils import VecNormalizeCheckpointCallback
+
+# suppress sklearn warnings about feature names
+warnings.filterwarnings(
+    "ignore",
+    message="X does not have valid feature names, but MinMaxScaler was fitted with feature names",
+)
 
 
 def main(args):
@@ -69,7 +46,7 @@ def main(args):
     # Use Monitor to log episode rewards/lengths to csv for the callback
     def make_env():
         env_cls = EmissionControlEnvThermal if args.use_thermal else EmissionControlEnv
-        e = env_cls()
+        e = env_cls(config_module=config)
         return Monitor(e, os.path.join(log_dir, "monitor.csv"))
 
     env = DummyVecEnv([make_env])
@@ -91,6 +68,7 @@ def main(args):
         "w_soc": config.W_SOC,
         "w_soc_squared": config.W_SOC_SQUARED,
         "w_flicker": config.W_FLICKER,
+        "use_onnx": bool(getattr(config, "USE_ONNX", False)),
         "use_thermal": args.use_thermal,
         "continued_run": args.continue_from is not None,
         "continued_from": args.continue_from,

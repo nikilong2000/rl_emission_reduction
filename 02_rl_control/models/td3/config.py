@@ -12,12 +12,17 @@ PG_MODEL_DIR = os.path.join(
 )
 ICE_MODEL_DIR_ONNX = os.path.join(PROJECT_ROOT, "CTTC/Models/ICE")
 PG_MODEL_DIR_ONNX = os.path.join(PROJECT_ROOT, "CTTC/Models/Drivetrain")
-USE_ONNX = False
 TRAIN_DATA_DIR = os.path.join(PROJECT_ROOT, "02_rl_control/data_train")
 ## DIRECTORIES END
 ############################
 
 ## TRAINING START
+# Runtime Selection
+USE_ONNX = False
+
+# Training duration
+TOTAL_TIMESTEPS = 1_000_000
+
 # TD3 Hyperparameters
 LEARNING_RATE = 1e-3  # Actor and Critic learning rate
 BUFFER_SIZE = 200_000  # Replay buffer capacity
@@ -33,9 +38,6 @@ TARGET_NOISE_CLIP = 0.5  # Clip bound for target-policy noise
 
 # Exploration noise applied to actor output during training
 ACTION_NOISE_SIGMA = 0.1
-
-# Training duration
-TOTAL_TIMESTEPS = 1_000_000
 
 # Reward Weights
 W_SPEED = 1.0
