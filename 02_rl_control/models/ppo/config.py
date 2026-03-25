@@ -26,7 +26,7 @@ TRAIN_DATA_DIR = os.path.join(PROJECT_ROOT, "02_rl_control/data_train")
 USE_ONNX = False
 
 # Training Configuration
-TOTAL_TIMESTEPS = 1_600_000
+TOTAL_TIMESTEPS = 800_000
 
 # PPO Hyperparameters
 LEARNING_RATE = 0.0003

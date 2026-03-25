@@ -1,3 +1,5 @@
+# DEPRECATED: Use the generic eval.py in models/ instead:
+#   python models/eval.py path/to/model.zip --algorithm ppo
 import os
 import sys
 import argparse

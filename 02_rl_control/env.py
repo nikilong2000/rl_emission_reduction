@@ -111,7 +111,7 @@ class EmissionControlEnv(gym.Env):
         render_mode=None,
         dataset_path=None,
         config_module=None,
-        random_target=True,
+        random_target=False,
         fixed_target_speed=None,
     ):
         super().__init__()
@@ -238,13 +238,13 @@ class EmissionControlEnv(gym.Env):
                 self.target_speed_schedule = []
                 for seg_start in range(0, self.max_steps, self._SEGMENT_LENGTH):
                     self.target_speed_schedule.append(
-                        (seg_start, random.uniform(0, 250))
+                        (seg_start, random.uniform(0, 150))
                     )
             self.target_speed = self.target_speed_schedule[0][1]
             schedule_str = ", ".join(
                 f"{spd:.0f}" for _, spd in self.target_speed_schedule
             )
-            print(f"  Target speed schedule (km/h): [{schedule_str}]")
+            print(f"\tTarget speed schedule (km/h): [{schedule_str}]")
         else:
             self.max_steps = len(self.df)
             print("\nUsing", str(chosen_file), ".")
@@ -413,10 +413,18 @@ class EmissionControlEnv(gym.Env):
         safe_speed_penalty = min(speed_error / norm_speed, 1.0)
         safe_emission_penalty = min(nox_tp / norm_emission, 1.0)
 
+        speed_tolerance = 5.0
+
         reward = 0.0
 
         ## DO NOT EDIT REWARDS HERE; INSTEAD IN config.py!!!!
-        reward -= self.config.W_SPEED * safe_speed_penalty
+        if speed_error < speed_tolerance:
+            # Give a positive reward of +1 for tracking well
+            reward += 1.0
+        else:
+            # Normalised penalty if outside tolerance
+            reward -= self.config.W_SPEED * safe_speed_penalty
+
         reward -= self.config.W_EMISSION * safe_emission_penalty
         reward -= self.config.W_FUEL * (fuel_mg / norm_fuel)
         reward -= self.config.W_BRAKE * (brake_perc / norm_brake)
@@ -427,7 +435,7 @@ class EmissionControlEnv(gym.Env):
             reward -= self.config.W_FLICKER
 
         if soc_boundary_breach:
-            reward -= 100.0
+            reward -= 5000.0  # has to be higher than n_steps per episode * max penalisation through speed error to incetivise not standing still
 
         # 7. Update State
         self.current_step += 1

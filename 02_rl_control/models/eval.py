@@ -1,70 +1,99 @@
-# DEPRECATED: Use the generic eval.py in models/ instead:
-#   python models/eval.py path/to/model.zip --algorithm td3
+"""
+Generic evaluation script for PPO, SAC, and TD3 emission-control agents.
+
+Usage:
+    python eval.py path/to/model.zip --algorithm ppo
+    python eval.py path/to/model.zip --target_speed 120
+    python eval.py path/to/model.zip --random_target
+
+The algorithm is auto-detected from train_config.json when --algorithm is not
+supplied explicitly.
+"""
+
 import os
 import sys
 import argparse
 import datetime
+import importlib
 import json
 import numpy as np
 import pandas as pd
-from stable_baselines3 import TD3
 import warnings
 
+from stable_baselines3 import PPO, SAC, TD3
+from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
+
+current_dir = os.path.dirname(os.path.abspath(__file__))
+sys.path.append(os.path.dirname(current_dir))
+
+from env import EmissionControlEnv
+from env_thermal import EmissionControlEnvThermal
+from plotting import (
+    plot_evaluation,
+    plot_actions,
+    plot_state_visitation_1d,
+    plot_state_visitation_2d,
+    plot_action_distribution,
+    plot_state_action_occupancy,
+    plot_temporal_state_heatmap,
+)
+from utils.evaluation_utils import calculate_emissions_per_km
+
+# Suppress sklearn warnings about feature names
 warnings.filterwarnings(
     "ignore",
     message="X does not have valid feature names, but MinMaxScaler was fitted with feature names",
 )
 
-current_dir = os.path.dirname(os.path.abspath(__file__))
-sys.path.append(os.path.dirname(os.path.dirname(current_dir)))
+# ---------------------------------------------------------------------------
+# Algorithm dispatch
+# ---------------------------------------------------------------------------
+ALGO_CLASSES = {
+    "ppo": PPO,
+    "sac": SAC,
+    "td3": TD3,
+}
 
-try:
-    from ...env import EmissionControlEnv
-    from ...env_thermal import EmissionControlEnvThermal
-    from ...plotting import (
-        plot_evaluation,
-        plot_actions,
-        plot_state_visitation_1d,
-        plot_state_visitation_2d,
-        plot_action_distribution,
-        plot_state_action_occupancy,
-        plot_temporal_state_heatmap,
-    )
-    from ...utils.evaluation_utils import calculate_emissions_per_km
-except ImportError:
-    from env import EmissionControlEnv
-    from env_thermal import EmissionControlEnvThermal
-    from plotting import (
-        plot_evaluation,
-        plot_actions,
-        plot_state_visitation_1d,
-        plot_state_visitation_2d,
-        plot_action_distribution,
-        plot_state_action_occupancy,
-        plot_temporal_state_heatmap,
-    )
-    from utils.evaluation_utils import calculate_emissions_per_km
 
-import config
+def _load_config(algo_key: str):
+    """Dynamically import the config module for the given algorithm."""
+    config_path = os.path.join(current_dir, algo_key, "config.py")
+    spec = importlib.util.spec_from_file_location(f"{algo_key}.config", config_path)
+    config = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(config)
+    return config
 
 
 def evaluate_model(
     model_path,
     eval_log_dir=None,
     train_config=None,
+    algorithm="ppo",
     use_thermal=False,
     random_target=False,
     target_speed=None,
 ):
+    algo_key = algorithm.lower()
+    AlgoClass = ALGO_CLASSES.get(algo_key)
+    if AlgoClass is None:
+        print(f"Error: Unknown algorithm '{algo_key}'. Choose from: {list(ALGO_CLASSES.keys())}")
+        sys.exit(1)
+
+    # Validate model path
     if not (os.path.exists(model_path) or os.path.exists(model_path + ".zip")):
         print(f"Error: Model file '{model_path}' not found.")
         sys.exit(1)
 
-    print(f"Loading TD3 model from {model_path}...")
-    model = TD3.load(model_path)
+    print(f"Loading {algo_key.upper()} model from {model_path}...")
+    model = AlgoClass.load(model_path)
+
+    # Load algorithm-specific config for environment construction
+    config = _load_config(algo_key)
 
     if eval_log_dir is None:
-        base_log_dir = os.path.join(current_dir, "logs")
+        base_log_dir = os.path.join(
+            os.path.dirname(current_dir), "logs", algo_key
+        )
         run_name = datetime.datetime.now().strftime("eval_%Y%m%d_%H%M%S")
         log_dir = os.path.join(base_log_dir, run_name)
         os.makedirs(log_dir, exist_ok=True)
@@ -72,11 +101,12 @@ def evaluate_model(
         log_dir = eval_log_dir
     print(f"Logging evaluation results to {log_dir}")
 
-    from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
+    # Initialize environment
+    print("Evaluating Model...")
 
     def make_env():
         wltc_path = os.path.join(
-            os.path.dirname(os.path.dirname(current_dir)),
+            os.path.dirname(current_dir),
             "data_train",
             "WLTC.csv",
         )
@@ -93,6 +123,8 @@ def evaluate_model(
     model_dir = os.path.dirname(os.path.abspath(model_path))
     model_basename = os.path.splitext(os.path.basename(model_path))[0]
 
+    # Priority: (1) per-checkpoint pkl, (2) same-dir vec_normalize.pkl,
+    # (3) parent-dir vec_normalize.pkl (when model is in a checkpoints/ subdir)
     vec_norm_path = os.path.join(model_dir, f"{model_basename}_vecnormalize.pkl")
     if not os.path.exists(vec_norm_path):
         vec_norm_path = os.path.join(model_dir, "vec_normalize.pkl")
@@ -100,6 +132,7 @@ def evaluate_model(
         vec_norm_path = os.path.join(os.path.dirname(model_dir), "vec_normalize.pkl")
 
     vec_normalized = False
+
     if os.path.exists(vec_norm_path):
         env = VecNormalize.load(vec_norm_path, env)
         env.training = False
@@ -115,6 +148,7 @@ def evaluate_model(
     done = False
     total_reward = 0
 
+    # Data collection for plotting
     eval_results = {
         "speed_actual": [],
         "speed_target": [],
@@ -130,21 +164,6 @@ def evaluate_model(
 
     # Store initial state
     raw_obs = env.get_original_obs()[0] if vec_normalized else obs[0]
-
-    # eval_results["speed_actual"].append(raw_obs[0])
-    # eval_results["speed_target"].append(
-    #     infos[0].get("target_speed", raw_obs[0] + raw_obs[1])
-    #     if "infos" in locals()
-    #     else (raw_obs[0] + raw_obs[1])
-    # )
-    # eval_results["soc"].append(raw_obs[2])
-    # eval_results["ice_torque"].append(raw_obs[3])
-    # eval_results["nox"].append(raw_obs[4])
-    # eval_results["fuel"].append(0.0)
-    # eval_results["engine_on"].append(False)
-    # eval_results["ice_speed_rpm"].append(0.0)
-    # eval_results["em2_torque_nm"].append(0.0)
-    # eval_results["brake_perc"].append(0.0)
 
     while not done:
         action, _states = model.predict(obs, deterministic=True)
@@ -179,7 +198,7 @@ def evaluate_model(
 
     print(f"Evaluation finished. Total Reward: {total_reward}")
 
-    # --- Metrics ---
+    # --- Calculate Metrics ---
     speed_actual = np.array(eval_results["speed_actual"])
     speed_target = np.array(eval_results["speed_target"])
     fuel_mg = np.array(eval_results["fuel"])
@@ -198,10 +217,15 @@ def evaluate_model(
     final_soc = soc[-1]
     delta_soc = final_soc - initial_soc
 
-    metrics = {"model_path": model_path}
+    metrics = {
+        "model_path": model_path,
+        "algorithm": algo_key.upper(),
+        "use_thermal": use_thermal,
+    }
 
     continued_run = False
     continued_from = None
+
     if train_config is not None:
         metrics["configuration"] = train_config
         continued_run = train_config.get("continued_run", False)
@@ -233,31 +257,41 @@ def evaluate_model(
     df_res.to_csv(csv_path, index=False)
     print(f"Evaluation data saved to {csv_path}")
 
+    algo_label = algo_key.upper()
     calculate_emissions_per_km(eval_results, log_dir)
     plot_evaluation(eval_results, log_dir)
     plot_actions(eval_results, log_dir, window_start=1, window_size=3600)
-    plot_state_visitation_1d([eval_results], ["TD3"], log_dir)
+    plot_state_visitation_1d([eval_results], [algo_label], log_dir)
     plot_state_visitation_2d(eval_results, log_dir)
-    plot_action_distribution([eval_results], ["TD3"], log_dir)
+    plot_action_distribution([eval_results], [algo_label], log_dir)
     plot_state_action_occupancy(eval_results, log_dir)
     plot_temporal_state_heatmap(eval_results, log_dir)
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Evaluate a trained TD3 model.")
+    parser = argparse.ArgumentParser(
+        description="Evaluate a trained PPO/SAC/TD3 emission-control model."
+    )
     parser.add_argument(
-        "model_path", type=str, help="Path to the trained TD3 model (.zip)"
+        "model_path", type=str, help="Path to the trained model (.zip)"
+    )
+    parser.add_argument(
+        "--algorithm",
+        type=str,
+        default=None,
+        choices=["ppo", "sac", "td3"],
+        help="RL algorithm (auto-detected from train_config.json if omitted).",
     )
     parser.add_argument(
         "--use_thermal",
         action="store_true",
         default=False,
-        help="Use EmissionControlEnvThermal (10-dim obs with aftertreatment temps)",
+        help="Use EmissionControlEnvThermal (10-dim obs with aftertreatment temps).",
     )
     parser.add_argument(
         "--random_target",
         action="store_true",
-        help="Evaluate with a random constant target speed (0-250 km/h).",
+        help="Evaluate with random target speeds.",
     )
     parser.add_argument(
         "--target_speed",
@@ -268,6 +302,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     model_dir = os.path.dirname(os.path.abspath(args.model_path))
+    # Try to load train_config.json from the run dir or parent (for checkpoints/ subdir)
     train_config = None
     for search_dir in [model_dir, os.path.dirname(model_dir)]:
         candidate = os.path.join(search_dir, "train_config.json")
@@ -277,10 +312,20 @@ if __name__ == "__main__":
             print(f"Loaded train config from {candidate}")
             break
 
-    # Auto-detect from train_config unless explicitly provided
+    # Auto-detect algorithm from train_config if not provided
+    algorithm = args.algorithm
+    if algorithm is None:
+        if train_config is not None and "algorithm" in train_config:
+            algorithm = train_config["algorithm"].lower()
+            print(f"Auto-detected algorithm: {algorithm.upper()}")
+        else:
+            print("Error: --algorithm is required when train_config.json is not available or missing 'algorithm' key.")
+            sys.exit(1)
+
     use_thermal = args.use_thermal or bool(
         train_config is not None and train_config.get("use_thermal", False)
     )
+    # Auto-detect random_target from train_config unless explicitly provided
     random_target = args.random_target or bool(
         train_config is not None and train_config.get("random_target", False)
     )
@@ -288,8 +333,9 @@ if __name__ == "__main__":
     evaluate_model(
         args.model_path,
         eval_log_dir=model_dir,
-        use_thermal=use_thermal,
         train_config=train_config,
+        algorithm=algorithm,
+        use_thermal=use_thermal,
         random_target=random_target,
         target_speed=args.target_speed,
     )

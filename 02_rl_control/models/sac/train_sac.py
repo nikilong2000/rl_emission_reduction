@@ -1,3 +1,5 @@
+# DEPRECATED: Use the generic train.py in models/ instead:
+#   python models/train.py --algorithm sac [--random_target] [--use_thermal]
 import os
 import sys
 import json
