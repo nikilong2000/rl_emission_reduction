@@ -103,15 +103,36 @@ class EmissionControlEnv(gym.Env):
 
     metadata = {"render_modes": ["human"]}
 
-    def __init__(self, render_mode=None, dataset_path=None, config_module=None):
+    _RANDOM_TARGET_EPISODE_LENGTH = 3600
+    _SEGMENT_LENGTH = 600  # steps per target-speed segment (300 s at dt=0.5)
+
+    def __init__(
+        self,
+        render_mode=None,
+        dataset_path=None,
+        config_module=None,
+        random_target=True,
+        fixed_target_speed=None,
+    ):
         super().__init__()
 
         self.dataset_path = dataset_path
+        self.random_target = random_target
+        self.fixed_target_speed = fixed_target_speed
+        # If a fixed target speed is given, enable random_target mode automatically
+        if self.fixed_target_speed is not None:
+            self.random_target = True
+        self.target_speed = (
+            0.0  # current segment target; updated by _get_current_target_speed
+        )
+        self.target_speed_schedule = []  # list of (start_step, speed) tuples
         self.config = (
             config_module
             if config_module is not None
             else _load_default_config_module()
         )
+
+        print("RANDOM TARGET:", self.random_target)
 
         (
             self.use_onnx,
@@ -179,6 +200,16 @@ class EmissionControlEnv(gym.Env):
             dtype=np.float32,
         )  # [Car_Speed (km/h), Speed_Error (km/h), SOC (0-1), ICE_Torque (Nm), NOx (g/s), Engine_On (0-1), SOC_Error (-1 to 1)]
 
+    def _get_current_target_speed(self):
+        """Return the target speed for the current step from the schedule."""
+        target = self.target_speed_schedule[0][1]  # fallback to first segment
+        for start_step, speed in self.target_speed_schedule:
+            if self.current_step >= start_step:
+                target = speed
+            else:
+                break
+        return target
+
     def reset(self, seed=None, options=None):
         super().reset(seed=seed)
         self.current_step = 0
@@ -189,15 +220,34 @@ class EmissionControlEnv(gym.Env):
         else:
             chosen_file = random.choice(self.data_files)
 
-        print("\nUsing", str(chosen_file), ".")
-
         self.df = pd.read_csv(chosen_file, delimiter=";", encoding="latin1")
         if self.df.shape[1] <= 1:
             self.df = pd.read_csv(chosen_file, delimiter=",", encoding="latin1")
 
         # clean column names
         self.df.columns = [col.strip() for col in self.df.columns]
-        self.max_steps = len(self.df)
+
+        # episode length: fixed for random-target mode, CSV length otherwise
+        if self.random_target:
+            self.max_steps = self._RANDOM_TARGET_EPISODE_LENGTH
+            if self.fixed_target_speed is not None:
+                # Single fixed target for the entire episode (evaluation mode)
+                self.target_speed_schedule = [(0, self.fixed_target_speed)]
+            else:
+                # Multi-segment: new random target every _SEGMENT_LENGTH steps
+                self.target_speed_schedule = []
+                for seg_start in range(0, self.max_steps, self._SEGMENT_LENGTH):
+                    self.target_speed_schedule.append(
+                        (seg_start, random.uniform(0, 250))
+                    )
+            self.target_speed = self.target_speed_schedule[0][1]
+            schedule_str = ", ".join(
+                f"{spd:.0f}" for _, spd in self.target_speed_schedule
+            )
+            print(f"  Target speed schedule (km/h): [{schedule_str}]")
+        else:
+            self.max_steps = len(self.df)
+            print("\nUsing", str(chosen_file), ".")
 
         # initialise models based on initial state in cycle
         ice_init_val_row = []
@@ -236,7 +286,10 @@ class EmissionControlEnv(gym.Env):
             True if ice_init_val_row[1] >= 0.1 else False
         )  # value by Markus to approximate initial state
 
-        target_speed = self.df.loc[0, self.target_col_name()]
+        if self.random_target:
+            target_speed = self.target_speed
+        else:
+            target_speed = self.df.loc[0, self.target_col_name()]
 
         obs = np.array(
             [
@@ -252,7 +305,7 @@ class EmissionControlEnv(gym.Env):
         )
 
         info = {
-            "time_s": self.df.loc[0, "time_s"],
+            "time_s": 0 if self.random_target else self.df.loc[0, "time_s"],
             "car_speed_kmph": target_speed,
         }
         return obs, info
@@ -286,16 +339,20 @@ class EmissionControlEnv(gym.Env):
 
         # 2. Prepare Inputs for ICE Model
         # Inputs: "ICE_Speed_rpm", "fuel_mg", "T_amb_K", "p_amb_bar"
-        t_amb = (
-            self.df.loc[self.current_step, "t_amb_k"]
-            if "t_amb_k" in self.df.columns
-            else 298.0
-        )
-        p_amb = (
-            self.df.loc[self.current_step, "p_amb_bar"]
-            if "p_amb_bar" in self.df.columns
-            else 1.005
-        )
+        if self.random_target:
+            t_amb = 298.0
+            p_amb = 1.005
+        else:
+            t_amb = (
+                self.df.loc[self.current_step, "t_amb_k"]
+                if "t_amb_k" in self.df.columns
+                else 298.0
+            )
+            p_amb = (
+                self.df.loc[self.current_step, "p_amb_bar"]
+                if "p_amb_bar" in self.df.columns
+                else 1.005
+            )
 
         ice_inputs = np.array(
             [[ice_speed_rpm, fuel_mg, t_amb, p_amb]], dtype=np.float32
@@ -337,7 +394,10 @@ class EmissionControlEnv(gym.Env):
         # Check for catastrophic boundary breach
         soc_boundary_breach = soc <= _SOC_LOWER_BOUND or soc >= _SOC_UPPER_BOUND
 
-        target_speed = self.df.loc[self.current_step, self.target_col_name()]
+        if self.random_target:
+            target_speed = self._get_current_target_speed()
+        else:
+            target_speed = self.df.loc[self.current_step, self.target_col_name()]
 
         speed_error = abs(target_speed - car_speed)
         soc_error = abs(soc - self.initial_soc)
@@ -383,11 +443,16 @@ class EmissionControlEnv(gym.Env):
         if self.current_step >= self.max_steps - 1 or soc_boundary_breach:
             terminated = True
 
-        next_target_speed = (
-            self.df.loc[self.current_step, self.target_col_name()]
-            if not terminated
-            else 0.0
-        )
+        if self.random_target:
+            next_target_speed = (
+                self._get_current_target_speed() if not terminated else 0.0
+            )
+        else:
+            next_target_speed = (
+                self.df.loc[self.current_step, self.target_col_name()]
+                if not terminated
+                else 0.0
+            )
 
         next_speed_error = next_target_speed - car_speed
 
@@ -407,7 +472,11 @@ class EmissionControlEnv(gym.Env):
         )
 
         info = {
-            "time_s": self.df.loc[self.current_step, "time_s"],
+            "time_s": (
+                self.current_step
+                if self.random_target
+                else self.df.loc[self.current_step, "time_s"]
+            ),
             "target_speed": target_speed,
             "speed_error": speed_error,
             "nox": nox_tp,

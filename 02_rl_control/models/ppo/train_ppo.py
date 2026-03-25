@@ -46,7 +46,7 @@ def main(args):
     # Use Monitor to log episode rewards/lengths to csv for the callback
     def make_env():
         env_cls = EmissionControlEnvThermal if args.use_thermal else EmissionControlEnv
-        e = env_cls(config_module=config)
+        e = env_cls(config_module=config, random_target=args.random_target)
         return Monitor(e, os.path.join(log_dir, "monitor.csv"))
 
     env = DummyVecEnv([make_env])
@@ -70,6 +70,7 @@ def main(args):
         "w_flicker": config.W_FLICKER,
         "use_onnx": bool(getattr(config, "USE_ONNX", False)),
         "use_thermal": args.use_thermal,
+        "random_target": args.random_target,
         "continued_run": args.continue_from is not None,
         "continued_from": args.continue_from,
     }
@@ -185,6 +186,7 @@ def main(args):
         eval_log_dir=log_dir,
         train_config=train_config,
         use_thermal=args.use_thermal,
+        random_target=args.random_target,
     )
 
 
@@ -209,6 +211,12 @@ if __name__ == "__main__":
         "--use_thermal",
         action="store_true",
         help="Use EmissionControlEnvThermal instead of EmissionControlEnv.",
+    )
+    parser.add_argument(
+        "--random_target",
+        action="store_true",
+        default=True,
+        help="Use a random constant target speed (0-250 km/h) instead of CSV trajectories.",
     )
     args = parser.parse_args()
 

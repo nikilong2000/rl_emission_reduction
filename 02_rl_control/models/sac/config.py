@@ -26,7 +26,7 @@ TOTAL_TIMESTEPS = 400_000
 # SAC Hyperparameters
 LEARNING_RATE = 3e-4  # Actor, Critic and entropy coefficient learning rate
 BUFFER_SIZE = 1_000_000  # Replay buffer capacity
-BATCH_SIZE = 512  # Mini-batch size for each gradient update
+BATCH_SIZE = 256  # Mini-batch size for each gradient update
 TAU = 0.005  # Soft target-network update coefficient
 GAMMA = 0.99  # Discount factor
 TRAIN_FREQ = 1  # Env steps between gradient updates

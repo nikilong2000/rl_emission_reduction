@@ -70,7 +70,7 @@ def main(args):
     env_cls = EmissionControlEnvThermal if args.use_thermal else EmissionControlEnv
 
     def make_env():
-        e = env_cls(config_module=config)
+        e = env_cls(config_module=config, random_target=args.random_target)
         return Monitor(e, os.path.join(log_dir, "monitor.csv"))
 
     env = DummyVecEnv([make_env])
@@ -100,6 +100,7 @@ def main(args):
         "w_soc_squared": config.W_SOC_SQUARED,
         "w_flicker": config.W_FLICKER,
         "use_onnx": bool(getattr(config, "USE_ONNX", False)),
+        "random_target": args.random_target,
         "continued_run": args.continue_from is not None,
         "continued_from": args.continue_from,
     }
@@ -229,6 +230,7 @@ def main(args):
         eval_log_dir=log_dir,
         train_config=train_config,
         use_thermal=args.use_thermal,
+        random_target=args.random_target,
     )
 
 
@@ -261,6 +263,11 @@ if __name__ == "__main__":
             "aftertreatment temperatures T_gas_eo, T_Sub_DPF, T_gas_tp). "
             "Recommended when thermodynamic context is needed for global optimality."
         ),
+    )
+    parser.add_argument(
+        "--random_target",
+        action="store_true",
+        help="Use a random constant target speed (0-250 km/h) instead of CSV trajectories.",
     )
     args = parser.parse_args()
 

@@ -177,20 +177,24 @@ class EmissionControlEnvThermal(EmissionControlEnv):
             fuel_mg = 0.0
 
         # 2. Ambient conditions
-        t_amb = (
-            self.df.loc[self.current_step, "t_amb_k"]
-            if "t_amb_k" in self.df.columns
-            else (
-                self.df.loc[self.current_step, "T_amb_K"]
-                if "T_amb_K" in self.df.columns
-                else 298.0
+        if self.random_target:
+            t_amb = 298.0
+            p_amb = 1.005
+        else:
+            t_amb = (
+                self.df.loc[self.current_step, "t_amb_k"]
+                if "t_amb_k" in self.df.columns
+                else (
+                    self.df.loc[self.current_step, "T_amb_K"]
+                    if "T_amb_K" in self.df.columns
+                    else 298.0
+                )
             )
-        )
-        p_amb = (
-            self.df.loc[self.current_step, "p_amb_bar"]
-            if "p_amb_bar" in self.df.columns
-            else 1.005
-        )
+            p_amb = (
+                self.df.loc[self.current_step, "p_amb_bar"]
+                if "p_amb_bar" in self.df.columns
+                else 1.005
+            )
 
         # 3. ICE prediction (single call — advances LSTM state once)
         ice_inputs = np.array(
@@ -226,7 +230,10 @@ class EmissionControlEnvThermal(EmissionControlEnv):
         soc = pg_pred[0][1]
 
         # 5. Reward (identical to base class)
-        target_speed = self.df.loc[self.current_step, self.target_col_name()]
+        if self.random_target:
+            target_speed = self._get_current_target_speed()
+        else:
+            target_speed = self.df.loc[self.current_step, self.target_col_name()]
         speed_error = abs(target_speed - car_speed)
         soc_error = abs(soc - self.initial_soc)
         soc_error_squared = (soc - self.initial_soc) ** 2
@@ -266,11 +273,14 @@ class EmissionControlEnvThermal(EmissionControlEnv):
         if self.current_step >= self.max_steps - 1:
             terminated = True
 
-        next_target_speed = (
-            self.df.loc[self.current_step, self.target_col_name()]
-            if not terminated
-            else 0.0
-        )
+        if self.random_target:
+            next_target_speed = self._get_current_target_speed() if not terminated else 0.0
+        else:
+            next_target_speed = (
+                self.df.loc[self.current_step, self.target_col_name()]
+                if not terminated
+                else 0.0
+            )
         next_speed_error = next_target_speed - car_speed
         soc_error_signed = soc - self.initial_soc
 
@@ -288,7 +298,7 @@ class EmissionControlEnvThermal(EmissionControlEnv):
         )
 
         info = {
-            "time_s": self.df.loc[self.current_step, "time_s"],
+            "time_s": self.current_step if self.random_target else self.df.loc[self.current_step, "time_s"],
             "target_speed": target_speed,
             "speed_error": speed_error,
             "nox": nox_tp,

@@ -49,7 +49,14 @@ except ImportError:
 import config
 
 
-def evaluate_model(model_path, eval_log_dir=None, train_config=None, use_thermal=False):
+def evaluate_model(
+    model_path,
+    eval_log_dir=None,
+    train_config=None,
+    use_thermal=False,
+    random_target=False,
+    target_speed=None,
+):
     # Validate model path (Stable-Baselines3 usually adds .zip automatically, so we check both)
     if not (os.path.exists(model_path) or os.path.exists(model_path + ".zip")):
         print(f"Error: Model file '{model_path}' not found.")
@@ -81,11 +88,13 @@ def evaluate_model(model_path, eval_log_dir=None, train_config=None, use_thermal
             "data_train",
             "WLTC.csv",
         )
-        return (
-            EmissionControlEnvThermal(dataset_path=wltc_path, config_module=config)
-            if use_thermal
-            else EmissionControlEnv(dataset_path=wltc_path, config_module=config)
-        )
+        env_cls = EmissionControlEnvThermal if use_thermal else EmissionControlEnv
+        if target_speed is not None:
+            return env_cls(config_module=config, fixed_target_speed=target_speed)
+        elif random_target:
+            return env_cls(config_module=config, random_target=True)
+        else:
+            return env_cls(dataset_path=wltc_path, config_module=config)
 
     env = DummyVecEnv([make_env])
 
@@ -265,6 +274,17 @@ if __name__ == "__main__":
         default=False,
         help="Use EmissionControlEnvThermal (10-dim obs with aftertreatment temps)",
     )
+    parser.add_argument(
+        "--random_target",
+        action="store_true",
+        help="Evaluate with a random constant target speed (0-250 km/h).",
+    )
+    parser.add_argument(
+        "--target_speed",
+        type=float,
+        default=None,
+        help="Evaluate with a specific fixed target speed (km/h). Implies --random_target.",
+    )
     args = parser.parse_args()
 
     model_dir = os.path.dirname(os.path.abspath(args.model_path))
@@ -281,10 +301,16 @@ if __name__ == "__main__":
     use_thermal = args.use_thermal or bool(
         train_config is not None and train_config.get("use_thermal", False)
     )
+    # Auto-detect random_target from train_config unless explicitly provided
+    random_target = args.random_target or bool(
+        train_config is not None and train_config.get("random_target", False)
+    )
 
     evaluate_model(
         args.model_path,
         eval_log_dir=model_dir,
         train_config=train_config,
         use_thermal=use_thermal,
+        random_target=random_target,
+        target_speed=args.target_speed,
     )
