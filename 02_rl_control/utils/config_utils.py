@@ -26,3 +26,11 @@ def config_check(continue_from, train_config):
                     "To prevent training with inconsistent parameters, the config must match. "
                     f"Mismatches: {', '.join(mismatches)}"
                 )
+
+def load_config(algo_key: str):
+    """Dynamically import the config module for the given algorithm."""
+    config_path = os.path.join(current_dir, f"config_{algo_key}.py")
+    spec = importlib.util.spec_from_file_location(f"config_{algo_key}", config_path)
+    config = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(config)
+    return config

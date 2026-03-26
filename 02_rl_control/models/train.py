@@ -30,7 +30,7 @@ sys.path.append(current_dir)
 from env import EmissionControlEnv
 from env_thermal import EmissionControlEnvThermal
 from plotting import TrainingLivePlotCallback, ExplorationEntropyCallback
-from utils import safety_utils
+from utils.config_utils import config_check, load_config
 from utils.checkpoint_utils import VecNormalizeCheckpointCallback
 
 # Suppress sklearn warnings about feature names
@@ -56,15 +56,6 @@ ALGORITHM_REGISTRY = {
         "on_policy": False,
     },
 }
-
-
-def _load_config(algo_key: str):
-    """Dynamically import the config module for the given algorithm."""
-    config_path = os.path.join(current_dir, f"config_{algo_key}.py")
-    spec = importlib.util.spec_from_file_location(f"config_{algo_key}", config_path)
-    config = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(config)
-    return config
 
 
 def _build_train_config(algo_key: str, config, args) -> dict:
@@ -227,7 +218,7 @@ def main(args):
         pass
 
     # Load algorithm-specific config
-    config = _load_config(algo_key)
+    config = load_config(algo_key)
 
     # Allow CLI flag to override config value for SAC's SDE
     if hasattr(args, "use_sde") and args.use_sde:
@@ -251,9 +242,7 @@ def main(args):
 
     # Build config snapshot for reproducibility
     train_config = _build_train_config(algo_key, config, args)
-    # print(train_config)
-
-    print(json.dumps(train_config, indent=4))
+    print(json.dumps(train_config, indent=4))  # print to validate
 
     # VecNormalize
     # On-policy (PPO): normalise both obs and rewards
@@ -261,7 +250,7 @@ def main(args):
     norm_reward = is_on_policy  # TODO: check this because i think its simply a mistake; however sac was performing pretty well
 
     if args.continue_from:
-        safety_utils.config_check(args.continue_from, train_config)
+        config_check(args.continue_from, train_config)
 
         vec_norm_path = os.path.join(
             os.path.dirname(args.continue_from), "vec_normalize.pkl"
@@ -341,7 +330,6 @@ def main(args):
     print(f"\nModel and VecNormalize stats saved to {log_dir}")
 
     ### EVALUATING ###
-    print(40 * "=", f"Evaluating {algo_key.upper()}...")
     from eval import evaluate_model
 
     evaluate_model(

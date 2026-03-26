@@ -39,6 +39,7 @@ from plotting import (
     plot_temporal_state_heatmap,
 )
 from utils.evaluation_utils import calculate_emissions_per_km
+from utils.config_utils import load_config
 
 # Suppress sklearn warnings about feature names
 warnings.filterwarnings(
@@ -54,18 +55,6 @@ ALGO_CLASSES = {
     "sac": SAC,
     "td3": TD3,
 }
-
-
-def _load_config(algo_key: str):
-    """Dynamically import the config module for the given algorithm."""
-    config_path = os.path.join(current_dir, f"config_{algo_key}.py")
-    spec = importlib.util.spec_from_file_location(f"config_{algo_key}", config_path)
-    config = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(config)
-    return config
-
-
-
 
 
 def evaluate_model(
@@ -94,7 +83,7 @@ def evaluate_model(
     model = AlgoClass.load(model_path)
 
     # Load algorithm-specific config for environment construction
-    config = _load_config(algo_key)
+    config = load_config(algo_key)
 
     if eval_log_dir is None:
         base_log_dir = os.path.join(os.path.dirname(current_dir), "logs", algo_key)
@@ -106,7 +95,7 @@ def evaluate_model(
     print(f"Logging evaluation results to {log_dir}")
 
     # Initialize environment
-    print("Evaluating Model...")
+    print(40 * "=", f"Evaluating {algo_key.upper()}...")
 
     def make_env():
         wltc_path = os.path.join(
@@ -116,7 +105,9 @@ def evaluate_model(
         )
         env_cls = EmissionControlEnvThermal if use_thermal else EmissionControlEnv
         if target_speed is not None:
-            return env_cls(config_module=config, fixed_target_speed=target_speed, eval_mode=True)
+            return env_cls(
+                config_module=config, fixed_target_speed=target_speed, eval_mode=True
+            )
         elif random_target:
             return env_cls(config_module=config, random_target=True, eval_mode=True)
         else:
@@ -209,7 +200,7 @@ def evaluate_model(
     nox_gs = np.array(eval_results["nox"])
     soc = np.array(eval_results["soc"])
 
-    dt = 0.5
+    dt = 0.5  # since measurements have 2hz frequency (2 steps == 1 second)
     total_fuel_g = np.sum(fuel_mg) / 1000.0
     total_nox_g = np.sum(nox_gs) * dt
 
@@ -254,13 +245,14 @@ def evaluate_model(
     metrics_path = os.path.join(log_dir, "evaluation_metrics.json")
     with open(metrics_path, "w") as f:
         json.dump(metrics, f, indent=4)
-    print(f"Metrics saved to {metrics_path}")
+    print(f"\nMetrics saved to {metrics_path}")
 
     df_res = pd.DataFrame(eval_results)
     csv_path = os.path.join(log_dir, "evaluation_data.csv")
     df_res.to_csv(csv_path, index=False)
-    print(f"Evaluation data saved to {csv_path}")
+    print(f"\nEvaluation data saved to {csv_path}")
 
+    # plot analysis plots
     algo_label = algo_key.upper()
     calculate_emissions_per_km(eval_results, log_dir)
     plot_evaluation(eval_results, log_dir, config)

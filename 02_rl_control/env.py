@@ -58,18 +58,6 @@ _SOC_LOWER_BOUND = 0.02
 _SOC_UPPER_BOUND = 0.98
 
 
-def _load_default_config_module():
-    if "config" in sys.modules:
-        return sys.modules["config"]
-    try:
-        return importlib.import_module("config")
-    except ImportError as exc:
-        raise ImportError(
-            "Could not resolve a config module. Pass config_module=... when "
-            "creating EmissionControlEnv."
-        ) from exc
-
-
 def _resolve_model_backend(config_module):
     use_onnx = bool(getattr(config_module, "USE_ONNX", False))
 
@@ -130,11 +118,7 @@ class EmissionControlEnv(gym.Env):
             0.0  # current segment target; updated by _get_current_target_speed
         )
         self.target_speed_schedule = []  # list of (start_step, speed) tuples
-        self.config = (
-            config_module
-            if config_module is not None
-            else _load_default_config_module()
-        )
+        self.config = config_module
 
         (
             self.use_onnx,
@@ -200,7 +184,7 @@ class EmissionControlEnv(gym.Env):
             low=np.array([-5.0, -155.0, 0.0, -50.0, 0.0, 0.0, -1.0], dtype=np.float32),
             high=np.array([150.0, 155.0, 1.0, 300.0, 0.4, 1.0, 1.0], dtype=np.float32),
             dtype=np.float32,
-        )  # [Car_Speed (km/h), Speed_Error (km/h), SOC (0-1), ICE_Torque (Nm), NOx (g/s), Engine_On (0-1), SOC_Error (-1 to 1)]
+        )  # [Car_Speed (km/h), Speed_Error (km/h), SOC (0-1), ICE_Torque (Nm), NOx (g/step), Engine_On (0-1), SOC_Error (-1 to 1)]
 
     def _get_current_target_speed(self):
         """Return the target speed for the current step from the schedule."""
