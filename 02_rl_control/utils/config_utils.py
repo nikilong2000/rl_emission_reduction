@@ -1,5 +1,6 @@
 import os
 import json
+import importlib
 
 
 def config_check(continue_from, train_config):
@@ -27,7 +28,8 @@ def config_check(continue_from, train_config):
                     f"Mismatches: {', '.join(mismatches)}"
                 )
 
-def load_config(algo_key: str):
+
+def load_config(current_dir, algo_key: str):
     """Dynamically import the config module for the given algorithm."""
     config_path = os.path.join(current_dir, f"config_{algo_key}.py")
     spec = importlib.util.spec_from_file_location(f"config_{algo_key}", config_path)

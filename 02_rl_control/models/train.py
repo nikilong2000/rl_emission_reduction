@@ -12,7 +12,6 @@ import sys
 import json
 import datetime
 import time
-import importlib
 import warnings
 import argparse
 
@@ -218,7 +217,7 @@ def main(args):
         pass
 
     # Load algorithm-specific config
-    config = load_config(algo_key)
+    config = load_config(current_dir=current_dir, algo_key=algo_key)
 
     # Allow CLI flag to override config value for SAC's SDE
     if hasattr(args, "use_sde") and args.use_sde:

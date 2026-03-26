@@ -14,7 +14,6 @@ import os
 import sys
 import argparse
 import datetime
-import importlib
 import json
 import numpy as np
 import pandas as pd
@@ -83,7 +82,7 @@ def evaluate_model(
     model = AlgoClass.load(model_path)
 
     # Load algorithm-specific config for environment construction
-    config = load_config(algo_key)
+    config = load_config(current_dir=current_dir, algo_key=algo_key)
 
     # Keep TensorFlow device setup aligned with training before env/model loading.
     try:
@@ -92,7 +91,9 @@ def evaluate_model(
         configure_environment()
         configure_tf_devices()
     except ImportError:
-        print("Warning: utils.platform_utils not available. Continuing without TF device setup.")
+        print(
+            "Warning: utils.platform_utils not available. Continuing without TF device setup."
+        )
 
     if eval_log_dir is None:
         base_log_dir = os.path.join(os.path.dirname(current_dir), "logs", algo_key)
