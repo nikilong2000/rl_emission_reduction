@@ -45,26 +45,22 @@ ALGORITHM_REGISTRY = {
     "ppo": {
         "class": PPO,
         "on_policy": True,
-        "config_package": "ppo",
     },
     "sac": {
         "class": SAC,
         "on_policy": False,
-        "config_package": "sac",
     },
     "td3": {
         "class": TD3,
         "on_policy": False,
-        "config_package": "td3",
     },
 }
 
 
 def _load_config(algo_key: str):
     """Dynamically import the config module for the given algorithm."""
-    package = ALGORITHM_REGISTRY[algo_key]["config_package"]
-    config_path = os.path.join(current_dir, package, "config.py")
-    spec = importlib.util.spec_from_file_location(f"{package}.config", config_path)
+    config_path = os.path.join(current_dir, f"config_{algo_key}.py")
+    spec = importlib.util.spec_from_file_location(f"config_{algo_key}", config_path)
     config = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(config)
     return config

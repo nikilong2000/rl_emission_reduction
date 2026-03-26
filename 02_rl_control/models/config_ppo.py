@@ -3,7 +3,7 @@ import os
 ## DIRECTORIES START
 # Base Directories
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
-PROJECT_ROOT = os.path.abspath(os.path.join(CURRENT_DIR, "..", "..", ".."))
+PROJECT_ROOT = os.path.abspath(os.path.join(CURRENT_DIR, "..", ".."))
 
 # Model Paths
 ICE_MODEL_DIR = os.path.join(

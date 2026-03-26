@@ -2,7 +2,7 @@ import os
 
 ## DIRECTORIES START
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
-PROJECT_ROOT = os.path.abspath(os.path.join(CURRENT_DIR, "..", "..", ".."))
+PROJECT_ROOT = os.path.abspath(os.path.join(CURRENT_DIR, "..", ".."))
 
 ICE_MODEL_DIR = os.path.join(
     PROJECT_ROOT, "internal_lstm_models/NN_Application/Nets/ICE"
@@ -48,10 +48,10 @@ SDE_SAMPLE_FREQ = -1  # -1 = sample new noise at the start of each rollout
 
 # Reward Weights
 W_SPEED = 1.0
-W_EMISSION = 0.85
+W_EMISSION = 0.0
 W_FUEL = 0.0
-W_BRAKE = 0.55
-W_SOC = 2.5
+W_BRAKE = 0.0
+W_SOC = 0.0
 W_SOC_SQUARED = 0.0
-W_FLICKER = 0.75
+W_FLICKER = 0.0
 ## TRAINING END
