@@ -4,6 +4,11 @@ import pickle
 import tensorflow as tf
 import keras
 
+try:
+    from .platform_utils import should_force_cpu_for_tf_models
+except ImportError:
+    from platform_utils import should_force_cpu_for_tf_models
+
 # Configure Keras to allow unsafe deserialization (needed for some models/scalers)
 keras.config.enable_unsafe_deserialization()
 
@@ -64,8 +69,23 @@ def load_network(
     if not os.path.exists(model_init_keras):
         raise FileNotFoundError(f"Init model not found at {model_init_keras}")
 
-    model_main = keras.models.load_model(model_inf_keras, compile=False)
-    model_init = keras.models.load_model(model_init_keras, compile=False)
+    force_cpu_models = should_force_cpu_for_tf_models()
+    if force_cpu_models:
+        print("[network_utils] Forcing CPU placement for TF model loading/inference.")
+
+    try:
+        model_main = _load_keras_model(model_inf_keras, force_cpu=force_cpu_models)
+        model_init = _load_keras_model(model_init_keras, force_cpu=force_cpu_models)
+    except Exception as exc:
+        if force_cpu_models or not _is_cuda_runtime_failure(exc):
+            raise
+
+        print(f"[network_utils] CUDA runtime failure while loading models: {exc}")
+        print("[network_utils] Retrying model loading on CPU.")
+        os.environ["RL_TF_FORCE_CPU_MODELS"] = "1"
+        model_main = _load_keras_model(model_inf_keras, force_cpu=True)
+        model_init = _load_keras_model(model_init_keras, force_cpu=True)
+        force_cpu_models = True
 
     print(f"Loaded Main Model. Input Shape: {model_main.input_shape}")
     print(f"Loaded Init Model. Input Shape: {model_init.input_shape}")
@@ -80,10 +100,16 @@ def load_network(
 
     @tf.function(jit_compile=False)
     def predict_main(input_tensor):
+        if force_cpu_models:
+            with tf.device("/CPU:0"):
+                return model_main({main_input_name: input_tensor}, training=False)
         return model_main({main_input_name: input_tensor}, training=False)
 
     @tf.function(jit_compile=False)
     def predict_init(input_tensor):
+        if force_cpu_models:
+            with tf.device("/CPU:0"):
+                return model_init({init_input_name: input_tensor}, training=False)
         return model_init({init_input_name: input_tensor}, training=False)
 
     return (
@@ -94,3 +120,21 @@ def load_network(
         predict_main,
         predict_init,
     )
+
+
+def _load_keras_model(model_path, force_cpu=False):
+    if force_cpu:
+        with tf.device("/CPU:0"):
+            return keras.models.load_model(model_path, compile=False)
+    return keras.models.load_model(model_path, compile=False)
+
+
+def _is_cuda_runtime_failure(exc):
+    msg = str(exc)
+    markers = (
+        "CUDA_ERROR_INVALID_HANDLE",
+        "CUDA_ERROR_UNSUPPORTED_PTX_VERSION",
+        "cuLaunchKernel",
+        "device:GPU",
+    )
+    return any(marker in msg for marker in markers)
