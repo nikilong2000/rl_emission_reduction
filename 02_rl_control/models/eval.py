@@ -85,6 +85,15 @@ def evaluate_model(
     # Load algorithm-specific config for environment construction
     config = load_config(algo_key)
 
+    # Keep TensorFlow device setup aligned with training before env/model loading.
+    try:
+        from utils.platform_utils import configure_environment, configure_tf_devices
+
+        configure_environment()
+        configure_tf_devices()
+    except ImportError:
+        print("Warning: utils.platform_utils not available. Continuing without TF device setup.")
+
     if eval_log_dir is None:
         base_log_dir = os.path.join(os.path.dirname(current_dir), "logs", algo_key)
         run_name = datetime.datetime.now().strftime("eval_%Y%m%d_%H%M%S")
