@@ -1,5 +1,7 @@
 {
-    "model_path": "02_rl_control/logs/sac/run_20260323_180030/sac_emission_final.zip",
+    "model_path": "/Users/niklaslongschiefelbein/local_documents/THESIS/code/rl_emission_reduction/02_rl_control/logs/sac/run_20260323_180030/sac_emission_final.zip",
+    "algorithm": "SAC",
+    "use_thermal": false,
     "configuration": {
         "algorithm": "SAC",
         "env": "base",
@@ -31,13 +33,13 @@
     },
     "continued_run": false,
     "continued_from": null,
-    "total_reward": -469.6545715332031,
-    "total_fuel_g": 105.74048899936676,
-    "total_nox_g": 11.42255425160026,
-    "mae_speed_kmph": 7.78644351239521,
-    "rmse_speed_kmph": 8.935077555233779,
+    "total_reward": -564.8265380859375,
+    "total_fuel_g": 97.67933917474747,
+    "total_nox_g": 19.34275629400975,
+    "mae_speed_kmph": 10.324761780398221,
+    "rmse_speed_kmph": 11.778838590904142,
     "initial_soc": 0.7006042003631592,
-    "final_soc": 0.6784163071641346,
-    "delta_soc": -0.02218789319902459,
+    "final_soc": 0.4015947285661376,
+    "delta_soc": -0.2990094717970216,
     "custom_notes": ""
 }

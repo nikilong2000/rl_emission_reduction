@@ -126,21 +126,21 @@ class EmissionControlEnvThermal(EmissionControlEnv):
         obs, info = super().reset(seed=seed, options=options)
 
         # Reset thermal state dynamically from the first row of the dataset
-        if "t_gas_eo_k" in self.df.columns and not pd.isna(
+        if not getattr(self, "eval_mode", False) and "t_gas_eo_k" in self.df.columns and not pd.isna(
             self.df.loc[0, "t_gas_eo_k"]
         ):
             self.last_t_gas_eo = float(self.df.loc[0, "t_gas_eo_k"])
         else:
             self.last_t_gas_eo = 298.0
 
-        if "t_sub_dpf_k" in self.df.columns and not pd.isna(
+        if not getattr(self, "eval_mode", False) and "t_sub_dpf_k" in self.df.columns and not pd.isna(
             self.df.loc[0, "t_sub_dpf_k"]
         ):
             self.last_t_sub_dpf = float(self.df.loc[0, "t_sub_dpf_k"])
         else:
             self.last_t_sub_dpf = 298.0
 
-        if "t_gas_tp_k" in self.df.columns and not pd.isna(
+        if not getattr(self, "eval_mode", False) and "t_gas_tp_k" in self.df.columns and not pd.isna(
             self.df.loc[0, "t_gas_tp_k"]
         ):
             self.last_t_gas_tp = float(self.df.loc[0, "t_gas_tp_k"])

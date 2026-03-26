@@ -64,6 +64,9 @@ def _load_config(algo_key: str):
     return config
 
 
+
+
+
 def evaluate_model(
     model_path,
     eval_log_dir=None,
@@ -76,7 +79,9 @@ def evaluate_model(
     algo_key = algorithm.lower()
     AlgoClass = ALGO_CLASSES.get(algo_key)
     if AlgoClass is None:
-        print(f"Error: Unknown algorithm '{algo_key}'. Choose from: {list(ALGO_CLASSES.keys())}")
+        print(
+            f"Error: Unknown algorithm '{algo_key}'. Choose from: {list(ALGO_CLASSES.keys())}"
+        )
         sys.exit(1)
 
     # Validate model path
@@ -91,9 +96,7 @@ def evaluate_model(
     config = _load_config(algo_key)
 
     if eval_log_dir is None:
-        base_log_dir = os.path.join(
-            os.path.dirname(current_dir), "logs", algo_key
-        )
+        base_log_dir = os.path.join(os.path.dirname(current_dir), "logs", algo_key)
         run_name = datetime.datetime.now().strftime("eval_%Y%m%d_%H%M%S")
         log_dir = os.path.join(base_log_dir, run_name)
         os.makedirs(log_dir, exist_ok=True)
@@ -112,11 +115,11 @@ def evaluate_model(
         )
         env_cls = EmissionControlEnvThermal if use_thermal else EmissionControlEnv
         if target_speed is not None:
-            return env_cls(config_module=config, fixed_target_speed=target_speed)
+            return env_cls(config_module=config, fixed_target_speed=target_speed, eval_mode=True)
         elif random_target:
-            return env_cls(config_module=config, random_target=True)
+            return env_cls(config_module=config, random_target=True, eval_mode=True)
         else:
-            return env_cls(dataset_path=wltc_path, config_module=config)
+            return env_cls(dataset_path=wltc_path, config_module=config, eval_mode=True)
 
     env = DummyVecEnv([make_env])
 
@@ -259,7 +262,7 @@ def evaluate_model(
 
     algo_label = algo_key.upper()
     calculate_emissions_per_km(eval_results, log_dir)
-    plot_evaluation(eval_results, log_dir)
+    plot_evaluation(eval_results, log_dir, config)
     plot_actions(eval_results, log_dir, window_start=1, window_size=3600)
     plot_state_visitation_1d([eval_results], [algo_label], log_dir)
     plot_state_visitation_2d(eval_results, log_dir)
@@ -272,9 +275,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Evaluate a trained PPO/SAC/TD3 emission-control model."
     )
-    parser.add_argument(
-        "model_path", type=str, help="Path to the trained model (.zip)"
-    )
+    parser.add_argument("model_path", type=str, help="Path to the trained model (.zip)")
     parser.add_argument(
         "--algorithm",
         type=str,
@@ -319,7 +320,9 @@ if __name__ == "__main__":
             algorithm = train_config["algorithm"].lower()
             print(f"Auto-detected algorithm: {algorithm.upper()}")
         else:
-            print("Error: --algorithm is required when train_config.json is not available or missing 'algorithm' key.")
+            print(
+                "Error: --algorithm is required when train_config.json is not available or missing 'algorithm' key."
+            )
             sys.exit(1)
 
     use_thermal = args.use_thermal or bool(

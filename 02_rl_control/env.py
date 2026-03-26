@@ -113,15 +113,19 @@ class EmissionControlEnv(gym.Env):
         config_module=None,
         random_target=False,
         fixed_target_speed=None,
+        eval_mode=False,
     ):
         super().__init__()
 
         self.dataset_path = dataset_path
+        self.eval_mode = eval_mode
         self.random_target = random_target
         self.fixed_target_speed = fixed_target_speed
-        # If a fixed target speed is given, enable random_target mode automatically
-        if self.fixed_target_speed is not None:
+
+        # If eval_mode or fixed_target_speed is True, we use random_target logic for scheduling
+        if self.fixed_target_speed is not None or self.eval_mode:
             self.random_target = True
+
         self.target_speed = (
             0.0  # current segment target; updated by _get_current_target_speed
         )
@@ -228,7 +232,22 @@ class EmissionControlEnv(gym.Env):
         self.df.columns = [col.strip() for col in self.df.columns]
 
         # episode length: fixed for random-target mode, CSV length otherwise
-        if self.random_target:
+        if self.eval_mode and self.fixed_target_speed is None:
+            self.max_steps = 3600
+            self.target_speed_schedule = [
+                (0, 50.0),
+                (600, 70.0),
+                (1200, 110.0),
+                (1800, 140.0),
+                (2400, 80.0),
+                (3000, 35.0),
+            ]
+            self.target_speed = self.target_speed_schedule[0][1]
+            schedule_str = ", ".join(
+                f"{spd:.0f}" for _, spd in self.target_speed_schedule
+            )
+            print(f"\tEval Mode Target speed schedule (km/h): [{schedule_str}]")
+        elif self.random_target:
             self.max_steps = self._RANDOM_TARGET_EPISODE_LENGTH
             if self.fixed_target_speed is not None:
                 # Single fixed target for the entire episode (evaluation mode)
@@ -252,7 +271,11 @@ class EmissionControlEnv(gym.Env):
         # initialise models based on initial state in cycle
         ice_init_val_row = []
         for c, d in zip(_ICE_COLS, _ICE_DEFAULTS):
-            if c in self.df.columns and not pd.isna(self.df.loc[0, c]):
+            if (
+                not self.eval_mode
+                and c in self.df.columns
+                and not pd.isna(self.df.loc[0, c])
+            ):
                 ice_init_val_row.append(float(self.df.loc[0, c]))
             else:
                 ice_init_val_row.append(d)
@@ -265,7 +288,11 @@ class EmissionControlEnv(gym.Env):
 
         pg_init_val_row = []
         for c, d in zip(_PG_COLS, _PG_DEFAULTS):
-            if c in self.df.columns and not pd.isna(self.df.loc[0, c]):
+            if (
+                not self.eval_mode
+                and c in self.df.columns
+                and not pd.isna(self.df.loc[0, c])
+            ):
                 pg_init_val_row.append(float(self.df.loc[0, c]))
             else:
                 pg_init_val_row.append(d)

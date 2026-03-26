@@ -1,46 +1,65 @@
 Emissions Summary
 =================
-Samples used: 3600
+Samples used: 3599
 Step size (dt): 0.500 s
-Total distance (km): 26.228423
-Total NOx (mg): 11422.554
-Overall NOx (mg/km): 435.503
+Total distance (km): 45.157976
+Total NOx (mg): 19342.756
+Overall NOx (mg/km): 428.335
 Overall NOx pass (<=80 mg/km): False
 
 NOx by WLTC phase
 =================
 phase,duration_s,distance_km,nox_mg,nox_mg_per_km,pass_80mg_per_km
-low,589,3.996967,2977.316,744.894,False
-medium,433,5.619615,524.572,93.347,False
-high,455,7.937996,3616.498,455.593,False
-extra_high,323,8.673845,4304.168,496.224,False
+low,589,11.324053,1724.068,152.248,False
+medium,433,15.660934,10915.650,696.999,False
+high,455,14.343168,6023.066,419.926,False
+extra_high,323,3.829821,679.972,177.547,False
 
 NOx per km segments
 ====================
 Kilometer, NOx (mg/km), NOx_Pass (<=80 mg/km)
-1, 943.86, False
-2, 1196.95, False
-3, 591.02, False
-4, 247.98, False
-5, 21.36, True
-6, 320.70, False
-7, 141.91, False
-8, -5.15, True
-9, -18.49, True
-10, 81.23, False
-11, 12.54, True
-12, 163.41, False
-13, 1130.60, False
-14, 1166.79, False
-15, 519.66, False
-16, 60.99, True
-17, 199.28, False
-18, 360.72, False
-19, 4.61, True
-20, 457.95, False
-21, 865.14, False
-22, 942.18, False
-23, 610.99, False
-24, 552.35, False
-25, 506.79, False
-26, 273.81, False
+1, -1.20, True
+2, -1.11, True
+3, -0.93, True
+4, 399.35, False
+5, 652.62, False
+6, 507.27, False
+7, 104.39, False
+8, 81.15, False
+9, 18.09, True
+10, -12.29, True
+11, -17.79, True
+12, 320.90, False
+13, 716.44, False
+14, 739.14, False
+15, 740.13, False
+16, 728.60, False
+17, 719.07, False
+18, 715.92, False
+19, 711.59, False
+20, 709.39, False
+21, 707.28, False
+22, 770.82, False
+23, 781.89, False
+24, 670.14, False
+25, 691.67, False
+26, 644.86, False
+27, 635.82, False
+28, 653.30, False
+29, 695.71, False
+30, 756.68, False
+31, 807.63, False
+32, 796.97, False
+33, 872.89, False
+34, 784.79, False
+35, 222.02, False
+36, 23.86, True
+37, 10.25, True
+38, 7.50, True
+39, 6.89, True
+40, 6.71, True
+41, 256.07, False
+42, 673.93, False
+43, 25.12, True
+44, 5.15, True
+Partial (0.86 km), 4.74, True
