@@ -223,7 +223,8 @@ def main(args):
         configure_environment()
         configure_tf_devices()
     except ImportError:
-        pass  # platform utils not available (e.g. no TF)
+        print(f"Error: utils.platform_utils not available. Check the import.")
+        pass
 
     # Load algorithm-specific config
     config = _load_config(algo_key)
@@ -250,6 +251,9 @@ def main(args):
 
     # Build config snapshot for reproducibility
     train_config = _build_train_config(algo_key, config, args)
+    # print(train_config)
+
+    print(json.dumps(train_config, indent=4))
 
     # VecNormalize
     # On-policy (PPO): normalise both obs and rewards
@@ -305,8 +309,8 @@ def main(args):
     plot_callback = TrainingLivePlotCallback(check_freq=1_000, log_dir=log_dir)
     entropy_callback = ExplorationEntropyCallback(plot_freq=10, log_dir=log_dir)
 
-    # Train
-    print(f"Starting {algo_key.upper()} Training...")
+    ### TRAINING ###
+    print(40 * "=", f"Starting {algo_key.upper()} Training...")
     training_start_time = time.perf_counter()
     model.learn(
         total_timesteps=config.TOTAL_TIMESTEPS,
@@ -324,7 +328,7 @@ def main(args):
     train_config["training_duration_seconds"] = round(training_duration_seconds, 3)
     train_config["training_duration_hms"] = training_duration_hms
     print(
-        f"Training finished in {training_duration_seconds:.2f}s "
+        f"\nTraining finished in {training_duration_seconds:.2f}s "
         f"({training_duration_hms})."
     )
 
@@ -334,10 +338,10 @@ def main(args):
     env.save(os.path.join(log_dir, "vec_normalize.pkl"))
     with open(os.path.join(log_dir, "train_config.json"), "w") as f:
         json.dump(train_config, f, indent=4)
-    print(f"Model and VecNormalize stats saved to {log_dir}")
+    print(f"\nModel and VecNormalize stats saved to {log_dir}")
 
-    # Evaluate
-    print("Evaluating Model...")
+    ### EVALUATING ###
+    print(40 * "=", f"Evaluating {algo_key.upper()}...")
     from eval import evaluate_model
 
     evaluate_model(

@@ -79,7 +79,7 @@ def _resolve_model_backend(config_module):
 
             ice_dir = config_module.ICE_MODEL_DIR_ONNX
             drivetrain_dir = config_module.PG_MODEL_DIR_ONNX
-            print("USING ONNX")
+            print(20 * "-", " USING ONNX ", 20 * "-")
             return use_onnx, load_network, set_states, ice_dir, drivetrain_dir
         except ImportError:
             print("Warning: ONNX_Predict.utilities not found. Falling back to TF2.18.")
@@ -92,7 +92,7 @@ def _resolve_model_backend(config_module):
 
     ice_dir = config_module.ICE_MODEL_DIR
     drivetrain_dir = config_module.PG_MODEL_DIR
-    print("USING TF2.18")
+    print(20 * "-", "USING TF2.18", 20 * "-")
     return use_onnx, load_network, set_states, ice_dir, drivetrain_dir
 
 
@@ -135,8 +135,6 @@ class EmissionControlEnv(gym.Env):
             if config_module is not None
             else _load_default_config_module()
         )
-
-        print("RANDOM TARGET:", self.random_target)
 
         (
             self.use_onnx,
@@ -246,7 +244,7 @@ class EmissionControlEnv(gym.Env):
             schedule_str = ", ".join(
                 f"{spd:.0f}" for _, spd in self.target_speed_schedule
             )
-            print(f"\tEval Mode Target speed schedule (km/h): [{schedule_str}]")
+            print(f"Eval Mode Target speed schedule (km/h): [{schedule_str}]")
         elif self.random_target:
             self.max_steps = self._RANDOM_TARGET_EPISODE_LENGTH
             if self.fixed_target_speed is not None:
@@ -263,10 +261,10 @@ class EmissionControlEnv(gym.Env):
             schedule_str = ", ".join(
                 f"{spd:.0f}" for _, spd in self.target_speed_schedule
             )
-            print(f"\tTarget speed schedule (km/h): [{schedule_str}]")
+            print(f"Target speed schedule (km/h): [{schedule_str}]")
         else:
             self.max_steps = len(self.df)
-            print("\nUsing", str(chosen_file), ".")
+            print("\nUsing", str(chosen_file), " file.")
 
         # initialise models based on initial state in cycle
         ice_init_val_row = []

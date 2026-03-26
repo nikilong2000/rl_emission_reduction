@@ -67,8 +67,8 @@ def load_network(
     model_main = keras.models.load_model(model_inf_keras, compile=False)
     model_init = keras.models.load_model(model_init_keras, compile=False)
 
-    print(f"Loaded Main Model from {directory}. Input Shape: {model_main.input_shape}")
-    print(f"Loaded Init Model from {directory}. Input Shape: {model_init.input_shape}")
+    print(f"Loaded Main Model. Input Shape: {model_main.input_shape}")
+    print(f"Loaded Init Model. Input Shape: {model_init.input_shape}")
 
     input_scaler = load_scaler(directory, input_scaler_name)
     output_scaler = load_scaler(directory, output_scaler_name)
