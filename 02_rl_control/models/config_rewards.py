@@ -1,0 +1,9 @@
+## REWARDS
+# Shared Reward Weights
+W_SPEED = 1.0
+W_EMISSION = 0.0
+W_FUEL = 0.0
+W_BRAKE = 0.0
+W_SOC = 0.0
+W_SOC_SQUARED = 0.0
+W_FLICKER = 0.0

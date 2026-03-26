@@ -25,6 +25,7 @@ from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.dirname(current_dir))
+sys.path.append(current_dir)
 
 from env import EmissionControlEnv
 from env_thermal import EmissionControlEnvThermal
