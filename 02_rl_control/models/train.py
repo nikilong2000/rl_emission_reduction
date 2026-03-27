@@ -20,7 +20,7 @@ from stable_baselines3 import PPO, SAC, TD3
 from stable_baselines3.common.noise import NormalActionNoise
 from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.callbacks import CheckpointCallback
-from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
+from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize, SubprocVecEnv
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.dirname(current_dir))
@@ -77,6 +77,10 @@ def _build_train_config(algo_key: str, config, args) -> dict:
         "continued_run": args.continue_from is not None,
         "continued_from": args.continue_from,
     }
+
+    if hasattr(config, "POLICY_KWARGS"):
+        # Store a string representation of the architecture for logging
+        tc["policy_kwargs"] = str(getattr(config, "POLICY_KWARGS"))
 
     # Algorithm-specific hyperparameters
     if algo_key == "ppo":
@@ -136,6 +140,9 @@ def _build_model_kwargs(algo_key: str, config, env, args, log_dir) -> dict:
         "tensorboard_log": log_dir,
         "device": args.agent_device,
     }
+
+    if hasattr(config, "POLICY_KWARGS"):
+        common["policy_kwargs"] = getattr(config, "POLICY_KWARGS")
 
     if algo_key == "ppo":
         common.update(
@@ -237,7 +244,7 @@ def main(args):
         e = env_cls(config_module=config, random_target=args.random_target)
         return Monitor(e, os.path.join(log_dir, "monitor.csv"))
 
-    env = DummyVecEnv([make_env])
+    env = SubprocVecEnv([make_env, make_env, make_env, make_env])
 
     # Build config snapshot for reproducibility
     train_config = _build_train_config(algo_key, config, args)
@@ -264,10 +271,10 @@ def main(args):
                 "Warning: Could not find vec_normalize.pkl. Starting fresh normalizer."
             )
             env = VecNormalize(
-                env, norm_obs=True, norm_reward=norm_reward, clip_obs=10.0
+                env, norm_obs=False, norm_reward=norm_reward, clip_obs=10.0
             )
     else:
-        env = VecNormalize(env, norm_obs=True, norm_reward=norm_reward, clip_obs=10.0)
+        env = VecNormalize(env, norm_obs=False, norm_reward=norm_reward, clip_obs=10.0)
 
     # Build model
     model_kwargs = _build_model_kwargs(algo_key, config, env, args, log_dir)

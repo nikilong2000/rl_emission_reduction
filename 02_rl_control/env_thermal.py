@@ -58,11 +58,14 @@ class EmissionControlEnvThermal(EmissionControlEnv):
       [9] T_gas_tp_K       — exhaust gas temp at tailpipe    (PC3 representative)
     """
 
-    def __init__(self, render_mode=None, dataset_path=None, config_module=None):
+    def __init__(self, render_mode=None, dataset_path=None, config_module=None, random_target=False, fixed_target_speed=None, eval_mode=False):
         super().__init__(
             render_mode=render_mode,
             dataset_path=dataset_path,
             config_module=config_module,
+            random_target=random_target,
+            fixed_target_speed=fixed_target_speed,
+            eval_mode=eval_mode,
         )
 
         # Extend obs bounds with the three thermal variables

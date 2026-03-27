@@ -26,7 +26,7 @@ TRAIN_DATA_DIR = os.path.join(PROJECT_ROOT, "02_rl_control/data_train")
 USE_ONNX = False
 
 # Training Configuration
-TOTAL_TIMESTEPS = 800_000
+TOTAL_TIMESTEPS = 2_000_000
 
 # PPO Hyperparameters
 LEARNING_RATE = 0.0003
@@ -36,6 +36,15 @@ N_EPOCHS = 10
 GAMMA = 0.99
 GAE_LAMBDA = 0.95
 CLIP_RANGE = 0.2
+
+# Policy Configuration
+import torch as th
+
+POLICY_KWARGS = dict(
+    activation_fn=th.nn.ReLU,
+    net_arch=dict(pi=[256, 256], vf=[256, 256]),
+    ortho_init=True,
+)
 
 # Reward Weights
 from config_rewards import *

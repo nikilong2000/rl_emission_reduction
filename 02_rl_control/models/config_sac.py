@@ -21,7 +21,7 @@ TRAIN_DATA_DIR = os.path.join(PROJECT_ROOT, "02_rl_control/data_train")
 USE_ONNX = False
 
 # Training duration
-TOTAL_TIMESTEPS = 400_000
+TOTAL_TIMESTEPS = 1_000_000
 
 # SAC Hyperparameters
 LEARNING_RATE = 3e-4  # Actor, Critic and entropy coefficient learning rate
@@ -45,7 +45,12 @@ TARGET_ENTROPY = "auto"
 USE_SDE = False
 SDE_SAMPLE_FREQ = -1  # -1 = sample new noise at the start of each rollout
 
+# Policy Configuration
+import torch as th
+
+POLICY_KWARGS = dict(activation_fn=th.nn.ReLU, net_arch=[256, 256])
 
 # Reward Weights
 from config_rewards import *
+
 ## TRAINING END

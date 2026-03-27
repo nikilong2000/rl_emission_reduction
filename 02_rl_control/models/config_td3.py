@@ -18,7 +18,7 @@ TRAIN_DATA_DIR = os.path.join(PROJECT_ROOT, "02_rl_control/data_train")
 
 ## TRAINING START
 # Runtime Selection
-USE_ONNX = False
+USE_ONNX = True
 
 # Training duration
 TOTAL_TIMESTEPS = 1_000_000
@@ -39,6 +39,14 @@ TARGET_NOISE_CLIP = 0.5  # Clip bound for target-policy noise
 # Exploration noise applied to actor output during training
 ACTION_NOISE_SIGMA = 0.1
 
+# Policy Configuration
+import torch as th
+POLICY_KWARGS = dict(
+    activation_fn=th.nn.ReLU,
+    net_arch=[256, 256]
+)
+
 # Reward Weights
 from config_rewards import *
+
 ## TRAINING END
