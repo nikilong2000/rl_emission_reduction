@@ -244,7 +244,7 @@ def main(args):
         e = env_cls(config_module=config, random_target=args.random_target)
         return Monitor(e, os.path.join(log_dir, "monitor.csv"))
 
-    env = SubprocVecEnv([make_env, make_env, make_env, make_env])
+    env = SubprocVecEnv([make_env])
 
     # Build config snapshot for reproducibility
     train_config = _build_train_config(algo_key, config, args)

@@ -38,10 +38,7 @@ GAE_LAMBDA = 0.95
 CLIP_RANGE = 0.2
 
 # Policy Configuration
-import torch as th
-
 POLICY_KWARGS = dict(
-    activation_fn=th.nn.ReLU,
     net_arch=dict(pi=[256, 256], vf=[256, 256]),
     ortho_init=True,
 )
