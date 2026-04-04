@@ -184,13 +184,14 @@ class EmissionControlEnv(gym.Env):
         # define observation space
         self.observation_space = spaces.Box(
             low=np.array(
-                [-5.0, -155.0, 0.0, -50.0, 0.0, 0.0, 0.0, -1.0], dtype=np.float32
+                [-5.0, -155.0, 0.0, -50.0, 0.0, 900.0, 3.0, -1.0, 0.0], dtype=np.float32
             ),
             high=np.array(
-                [150.0, 155.0, 1.0, 300.0, 0.4, 4000.0, 70.0, 1.0], dtype=np.float32
+                [150.0, 155.0, 1.0, 300.0, 0.4, 4000.0, 70.0, 1.0, 1.0],
+                dtype=np.float32,
             ),
             dtype=np.float32,
-        )  # [Car_Speed (km/h), Speed_Error (km/h), SOC (0-1), ICE_Torque (Nm), NOx (g/step), ICE_Speed (rpm), Fuel (mg), SOC_Error (-1 to 1)]
+        )  # [Car_Speed (km/h), Speed_Error (km/h), SOC (0-1), ICE_Torque (Nm), NOx (g/step), ICE_Speed (rpm), Fuel (mg), SOC_Error (-1 to 1), Normalized_Timer (0-1)]
 
     def _get_current_target_speed(self):
         """Return the target speed for the current step from the schedule."""
@@ -317,6 +318,7 @@ class EmissionControlEnv(gym.Env):
                 self.last_ice_speed,
                 self.last_fuel,
                 0.0,  # Initial SOC error is exactly 0.0
+                min(float(self.steps_since_last_engine_switch) / 6.0, 1.0),
             ],
             dtype=np.float32,
         )
@@ -368,6 +370,7 @@ class EmissionControlEnv(gym.Env):
             engine_on = self.last_engine_on
             if engine_on:
                 ice_speed_rpm = 900.0
+                fuel_mg = 3.0
 
         if engine_on == self.last_engine_on:
             self.steps_since_last_engine_switch += 1
@@ -517,6 +520,7 @@ class EmissionControlEnv(gym.Env):
                 ice_speed_rpm,
                 fuel_mg,
                 soc_error,
+                min(float(self.steps_since_last_engine_switch) / 6.0, 1.0),
             ],
             dtype=np.float32,
         )
