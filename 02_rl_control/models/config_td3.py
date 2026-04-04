@@ -18,10 +18,10 @@ TRAIN_DATA_DIR = os.path.join(PROJECT_ROOT, "02_rl_control/data_train")
 
 ## TRAINING START
 # Runtime Selection
-USE_ONNX = True
+USE_ONNX = False
 
 # Training duration
-TOTAL_TIMESTEPS = 1_000_000
+TOTAL_TIMESTEPS = 4_000_000
 
 # TD3 Hyperparameters
 LEARNING_RATE = 1e-3  # Actor and Critic learning rate

@@ -21,7 +21,7 @@ TRAIN_DATA_DIR = os.path.join(PROJECT_ROOT, "02_rl_control/data_train")
 USE_ONNX = False
 
 # Training duration
-TOTAL_TIMESTEPS = 2_000_000
+TOTAL_TIMESTEPS = 4_000_000
 
 # SAC Hyperparameters
 LEARNING_RATE = 3e-4  # Actor, Critic and entropy coefficient learning rate

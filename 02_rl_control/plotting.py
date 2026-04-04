@@ -22,21 +22,21 @@ class TrainingLivePlotCallback(BaseCallback):
             # Retrieve mean reward from the monitor file or accumulated rewards
             # SB3 Monitor wrapper writes to a csv file. We can read that or just track episode rewards if we want.
             # But SB3 callbacks don't easily give "current episode reward".
-            # Easiest is to read the monitor.csv if it exists.
+            # Easiest is to read the monitor files if they exist.
             try:
-                monitor_path = os.path.join(self.log_dir, "monitor.csv")
-                if os.path.exists(monitor_path):
-                    # Skip first 2 lines (metadata)
-                    df = pd.read_csv(monitor_path, skiprows=1)
-                    if len(df) > 0:
-                        # Use a moving average for smoother plotting
-                        rewards = df["r"].values
-                        if len(rewards) > 0:
-                            mean_reward = np.mean(rewards[-100:])  # Last 100 episodes
-                            self.rewards.append(mean_reward)
-                            self.timesteps.append(self.num_timesteps)
+                from stable_baselines3.common.results_plotter import load_results, ts2xy
 
-                            self._plot()
+                df = load_results(self.log_dir)
+                if len(df) > 0:
+                    # ts2xy extracts the timeseries (timesteps and rewards) from the monitor dataframes
+                    x, y = ts2xy(df, "timesteps")
+                    if len(y) > 0:
+                        # Use a moving average for smoother plotting
+                        mean_reward = np.mean(y[-100:])  # Last 100 episodes
+                        self.rewards.append(mean_reward)
+                        self.timesteps.append(self.num_timesteps)
+
+                        self._plot()
             except Exception as e:
                 pass  # Ignore errors during plotting
 

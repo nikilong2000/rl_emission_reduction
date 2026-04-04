@@ -89,8 +89,6 @@ class EmissionControlEnv(gym.Env):
     Gym Environment for controlling ICE and Drivetrain to minimize emissions and track speed.
     """
 
-    metadata = {"render_modes": ["human"]}
-
     _RANDOM_TARGET_EPISODE_LENGTH = 3600
     _SEGMENT_LENGTH = 600  # steps per target-speed segment (300 s at dt=0.5)
 
@@ -146,6 +144,9 @@ class EmissionControlEnv(gym.Env):
         self.df = None
         self.max_steps = 0
         self.current_step = 0
+        self.steps_since_last_engine_switch = 0
+        self.last_ice_speed = 0.0
+        self.last_fuel = 0.0
 
         print("Loading ICE Model...")
         self.ice_tuple = self.load_network(self.ice_model_dir)
@@ -172,19 +173,24 @@ class EmissionControlEnv(gym.Env):
         # define action space
         # normalise actions to [-1, 1] and rescale inside step
         self.action_space = spaces.Box(
-            low=-1.0, high=1.0, shape=(5,), dtype=np.float32
-        )  # [Engine_State, ICE_Speed, EM2_Torque, Fuel_Mass, Brake]
+            low=-1.0, high=1.0, shape=(4,), dtype=np.float32
+        )  # [ICE_Command, EM2_Torque, Fuel_Mass, Brake]
 
         # action scaling (Min/Max values for rescaling)
-        self.action_min = np.array([-1.0, 900.0, -421.0, 3.0, 0.0], dtype=np.float32)
-        self.action_max = np.array([1.0, 4000.0, 421.0, 70.0, 100.0], dtype=np.float32)
+        # Note: ICE_Command is custom mapped in step(), its bounds just pass through [-1.0, 1.0]
+        self.action_min = np.array([-1.0, -421.0, 3.0, 0.0], dtype=np.float32)
+        self.action_max = np.array([1.0, 421.0, 70.0, 100.0], dtype=np.float32)
 
         # define observation space
         self.observation_space = spaces.Box(
-            low=np.array([-5.0, -155.0, 0.0, -50.0, 0.0, 0.0, -1.0], dtype=np.float32),
-            high=np.array([150.0, 155.0, 1.0, 300.0, 0.4, 1.0, 1.0], dtype=np.float32),
+            low=np.array(
+                [-5.0, -155.0, 0.0, -50.0, 0.0, 0.0, 0.0, -1.0], dtype=np.float32
+            ),
+            high=np.array(
+                [150.0, 155.0, 1.0, 300.0, 0.4, 4000.0, 70.0, 1.0], dtype=np.float32
+            ),
             dtype=np.float32,
-        )  # [Car_Speed (km/h), Speed_Error (km/h), SOC (0-1), ICE_Torque (Nm), NOx (g/step), Engine_On (0-1), SOC_Error (-1 to 1)]
+        )  # [Car_Speed (km/h), Speed_Error (km/h), SOC (0-1), ICE_Torque (Nm), NOx (g/step), ICE_Speed (rpm), Fuel (mg), SOC_Error (-1 to 1)]
 
     def _get_current_target_speed(self):
         """Return the target speed for the current step from the schedule."""
@@ -294,6 +300,7 @@ class EmissionControlEnv(gym.Env):
         self.last_engine_on = (
             True if ice_init_val_row[1] >= 0.1 else False
         )  # value by Markus to approximate initial state
+        self.steps_since_last_engine_switch = 6  # Allow immediate switch on first step
 
         if self.random_target:
             target_speed = self.target_speed
@@ -307,7 +314,8 @@ class EmissionControlEnv(gym.Env):
                 self.last_soc,
                 self.last_ice_torque,
                 self.last_nox,
-                float(self.last_engine_on),
+                self.last_ice_speed,
+                self.last_fuel,
                 0.0,  # Initial SOC error is exactly 0.0
             ],
             dtype=np.float32,
@@ -333,15 +341,39 @@ class EmissionControlEnv(gym.Env):
         # print(f"  Fuel_Mass_mg: {scaled_action[3]}")
         # print(f"  Brake_Perc: {scaled_action[4]}")
 
-        engine_state_req = scaled_action[0]
-        ice_speed_rpm = scaled_action[1]
-        em2_torque_nm = scaled_action[2]
-        fuel_mg = scaled_action[3]
-        brake_perc = scaled_action[4]
+        ice_command = scaled_action[0]
+        em2_torque_nm = scaled_action[1]
+        fuel_mg = scaled_action[2]
+        brake_perc = scaled_action[3]
 
-        # Enforce Engine Off bounds
-        # If engine_state_req < 0, ICE is commanded OFF
-        engine_on = engine_state_req >= 0.0
+        if ice_command <= 0.0:
+            engine_on = False
+            ice_speed_rpm = 0.0
+            fuel_mg = 0.0
+        else:
+            engine_on = True
+            # Map top half (0.0, 1.0] to [900, 4000]
+            ice_speed_rpm = 900.0 + (ice_command * (4000.0 - 900.0))
+
+        # Prevent battery overcharging / overdischarging via Action Safety Filter
+        # If battery is almost full, block charging (negative EM2 torque)
+        if self.last_soc >= 0.98 and em2_torque_nm < 0.0:
+            em2_torque_nm = 0.0
+        # If battery is almost empty, block discharging (positive EM2 torque)
+        elif self.last_soc <= 0.02 and em2_torque_nm > 0.0:
+            em2_torque_nm = 0.0
+
+        # Enforce minimum time in current engine state (on/off)
+        if engine_on != self.last_engine_on and self.steps_since_last_engine_switch < 6:
+            engine_on = self.last_engine_on
+            if engine_on:
+                ice_speed_rpm = 900.0
+
+        if engine_on == self.last_engine_on:
+            self.steps_since_last_engine_switch += 1
+        else:
+            self.steps_since_last_engine_switch = 1
+
         if not engine_on:
             ice_speed_rpm = 0.0
             fuel_mg = 0.0
@@ -398,10 +430,10 @@ class EmissionControlEnv(gym.Env):
         car_speed = pg_pred[0][0]
         soc = pg_pred[0][1]
 
-        # 6. Calculate Reward
+        # Strictly clip SOC mathematically to keep LSTM in known valid domain
+        soc = np.clip(soc, 0.0001, 0.9999)
 
-        # Check for catastrophic boundary breach
-        soc_boundary_breach = soc <= _SOC_LOWER_BOUND or soc >= _SOC_UPPER_BOUND
+        # 6. Calculate Reward
 
         if self.random_target:
             target_speed = self._get_current_target_speed()
@@ -427,13 +459,14 @@ class EmissionControlEnv(gym.Env):
         reward = 0.0
 
         ## DO NOT EDIT REWARDS HERE; INSTEAD IN config.py!!!!
-        if speed_error < speed_tolerance:
-            # Give a positive reward of +1 for tracking well
-            reward += 1.0
-        else:
-            # Normalised penalty if outside tolerance
-            reward -= self.config.W_SPEED * safe_speed_penalty
 
+        # Scale factor dictates how wide the "bell" is.
+        # A scale of 10.0 means at 10 km/h error, the reward drops significantly.
+        scale_factor = 5.0
+
+        reward += self.config.W_SPEED * np.exp(
+            -0.5 * (speed_error / scale_factor) ** 2
+        )  # gaussian reward
         reward -= self.config.W_EMISSION * safe_emission_penalty
         reward -= self.config.W_FUEL * (fuel_mg / norm_fuel)
         reward -= self.config.W_BRAKE * (brake_perc / norm_brake)
@@ -443,9 +476,6 @@ class EmissionControlEnv(gym.Env):
         if engine_on and not self.last_engine_on:
             reward -= self.config.W_FLICKER
 
-        if soc_boundary_breach:
-            reward -= 5000.0  # has to be higher than n_steps per episode * max penalisation through speed error to incetivise not standing still
-
         # 7. Update State
         self.current_step += 1
         self.last_ice_torque = ice_torque
@@ -453,11 +483,13 @@ class EmissionControlEnv(gym.Env):
         self.last_soc = soc
         self.last_nox = nox_tp
         self.last_engine_on = engine_on
+        self.last_ice_speed = ice_speed_rpm
+        self.last_fuel = fuel_mg
 
         terminated = False
         truncated = False
 
-        if self.current_step >= self.max_steps - 1 or soc_boundary_breach:
+        if self.current_step >= self.max_steps - 1:
             terminated = True
 
         if self.random_target:
@@ -482,7 +514,8 @@ class EmissionControlEnv(gym.Env):
                 soc,
                 ice_torque,
                 nox_tp,
-                float(engine_on),
+                ice_speed_rpm,
+                fuel_mg,
                 soc_error,
             ],
             dtype=np.float32,
@@ -499,6 +532,7 @@ class EmissionControlEnv(gym.Env):
             "nox": nox_tp,
             "fuel": fuel_mg,
             "engine_on": engine_on,
+            "steps_since_last_engine_switch": self.steps_since_last_engine_switch,
             "ice_torque": ice_torque,
             "ice_speed_rpm": ice_speed_rpm,
             "em2_torque_nm": em2_torque_nm,

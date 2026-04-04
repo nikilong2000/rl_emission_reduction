@@ -57,7 +57,7 @@ ALGORITHM_REGISTRY = {
 }
 
 
-def _build_train_config(algo_key: str, config, args) -> dict:
+def _build_train_config(algo_key: str, config, args, env_cls=None) -> dict:
     """Build a JSON-serialisable dict with all hyperparameters for reproducibility."""
     tc = {
         "algorithm": algo_key.upper(),
@@ -77,6 +77,23 @@ def _build_train_config(algo_key: str, config, args) -> dict:
         "continued_run": args.continue_from is not None,
         "continued_from": args.continue_from,
     }
+
+    # write reward logic to file
+    if env_cls is not None:
+        import inspect
+
+        try:
+            source_lines = inspect.getsource(env_cls.step)
+            start = source_lines.find("# 6. Calculate Reward")
+            end = source_lines.find("# 7. Update State")
+            if start != -1 and end != -1:
+                tc["reward_logic"] = source_lines[start:end].strip()
+            else:
+                tc["reward_logic"] = (
+                    "Could not parse reward logic from environment source."
+                )
+        except Exception as e:
+            tc["reward_logic"] = f"Could not parse reward logic: {str(e)}"
 
     if hasattr(config, "POLICY_KWARGS"):
         # Store a string representation of the architecture for logging
@@ -141,7 +158,8 @@ def _build_model_kwargs(algo_key: str, config, env, args, log_dir) -> dict:
         "device": args.agent_device,
     }
 
-    if hasattr(config, "POLICY_KWARGS"):
+    # if continue_from just re-use old kwargs
+    if hasattr(config, "POLICY_KWARGS") and not args.continue_from:
         common["policy_kwargs"] = getattr(config, "POLICY_KWARGS")
 
     if algo_key == "ppo":
@@ -240,20 +258,25 @@ def main(args):
     # Create Environment
     env_cls = EmissionControlEnvThermal if args.use_thermal else EmissionControlEnv
 
-    def make_env():
-        e = env_cls(config_module=config, random_target=args.random_target)
-        return Monitor(e, os.path.join(log_dir, "monitor.csv"))
+    def make_env(rank: int, seed: int = 0):
+        def _init():
+            e = env_cls(config_module=config, random_target=args.random_target)
+            e.reset(seed=seed + rank)  # needed for running multi-thread
+            return Monitor(e, os.path.join(log_dir, str(rank)))
 
-    env = SubprocVecEnv([make_env])
+        return _init
+
+    num_envs = 10
+    env = SubprocVecEnv([make_env(i) for i in range(num_envs)])
 
     # Build config snapshot for reproducibility
-    train_config = _build_train_config(algo_key, config, args)
+    train_config = _build_train_config(algo_key, config, args, env_cls)
     print(json.dumps(train_config, indent=4))  # print to validate
 
     # VecNormalize
     # On-policy (PPO): normalise both obs and rewards
-    # Off-policy (SAC/TD3): normalise obs only (raw rewards in replay buffer)
-    norm_reward = is_on_policy  # TODO: check this because i think its simply a mistake; however sac was performing pretty well
+    # Off-policy (SAC/TD3): normalise nothing to avoid moving targets
+    norm_reward_and_obs = is_on_policy
 
     if args.continue_from:
         config_check(args.continue_from, train_config)
@@ -271,10 +294,18 @@ def main(args):
                 "Warning: Could not find vec_normalize.pkl. Starting fresh normalizer."
             )
             env = VecNormalize(
-                env, norm_obs=False, norm_reward=norm_reward, clip_obs=10.0
+                env,
+                norm_obs=norm_reward_and_obs,
+                norm_reward=norm_reward_and_obs,
+                clip_obs=10.0,
             )
     else:
-        env = VecNormalize(env, norm_obs=False, norm_reward=norm_reward, clip_obs=10.0)
+        env = VecNormalize(
+            env,
+            norm_obs=norm_reward_and_obs,
+            norm_reward=norm_reward_and_obs,
+            clip_obs=10.0,
+        )
 
     # Build model
     model_kwargs = _build_model_kwargs(algo_key, config, env, args, log_dir)
