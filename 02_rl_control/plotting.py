@@ -91,7 +91,7 @@ def plot_evaluation(results, log_dir, config):
     # 2. SOC
     axes[1].plot(time_steps, results["soc"], label="SOC", color="green")
     axes[1].set_ylabel("SOC")
-    axes[1].set_ylim(0, 1)
+    axes[1].set_ylim(-0.1, 1.1)
     axes[1].set_title("State of Charge (1 = full, 0 = empty)")
     axes[1].axhline(y=0.2, color="r", linestyle=":", alpha=0.5)
     axes[1].axhline(y=0.9, color="r", linestyle=":", alpha=0.5)
@@ -104,7 +104,7 @@ def plot_evaluation(results, log_dir, config):
     if not has_thermals:
         axes[2].set_xlabel("Time Step (0.5s)")
     axes[2].set_title("NOx Emissions per Step (mg)")
-    axes[2].set_ylim(-1, 50)
+    axes[2].set_ylim(-1, 80)
     axes[2].legend()
     axes[2].grid(True)
 

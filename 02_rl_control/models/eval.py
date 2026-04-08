@@ -128,6 +128,14 @@ def evaluate_model(
     model_dir = os.path.dirname(os.path.abspath(model_path))
     model_basename = os.path.splitext(os.path.basename(model_path))[0]
 
+    # Keep only a reference to training configuration location in eval metrics.
+    train_config_path = None
+    for search_dir in [model_dir, os.path.dirname(model_dir)]:
+        candidate = os.path.join(search_dir, "train_config.json")
+        if os.path.exists(candidate):
+            train_config_path = candidate
+            break
+
     # Priority: (1) per-checkpoint pkl, (2) same-dir vec_normalize.pkl,
     # (3) parent-dir vec_normalize.pkl (when model is in a checkpoints/ subdir)
     vec_norm_path = os.path.join(model_dir, f"{model_basename}_vecnormalize.pkl")
@@ -222,24 +230,15 @@ def evaluate_model(
     final_soc = soc[-1]
     delta_soc = final_soc - initial_soc
 
+    # Keep evaluation metrics focused on evaluation outputs only.
+    # Training configuration is already persisted in train_config.json.
     metrics = {
         "model_path": model_path,
-        "algorithm": algo_key.upper(),
-        "use_thermal": use_thermal,
+        "train_config_path": train_config_path,
     }
-
-    continued_run = False
-    continued_from = None
-
-    if train_config is not None:
-        metrics["configuration"] = train_config
-        continued_run = train_config.get("continued_run", False)
-        continued_from = train_config.get("continued_from", None)
 
     metrics.update(
         {
-            "continued_run": continued_run,
-            "continued_from": continued_from,
             "total_reward": float(total_reward),
             "total_fuel_g": float(total_fuel_g),
             "total_nox_g": float(total_nox_g),

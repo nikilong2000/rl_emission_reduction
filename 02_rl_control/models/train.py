@@ -287,7 +287,7 @@ def main(args):
         if os.path.exists(vec_norm_path):
             env = VecNormalize.load(vec_norm_path, env)
             env.training = True
-            env.norm_reward = norm_reward
+            env.norm_reward = norm_reward_and_obs
             print(f"Loaded VecNormalize stats from {vec_norm_path}")
         else:
             print(

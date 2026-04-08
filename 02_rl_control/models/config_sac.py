@@ -46,7 +46,7 @@ USE_SDE = False
 SDE_SAMPLE_FREQ = -1  # -1 = sample new noise at the start of each rollout
 
 # Policy Configuration
-POLICY_KWARGS = dict(net_arch=[256, 256])
+# POLICY_KWARGS = dict(net_arch=[256, 256])
 
 # Reward Weights
 from config_rewards import *

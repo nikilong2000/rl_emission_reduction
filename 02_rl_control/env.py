@@ -457,15 +457,13 @@ class EmissionControlEnv(gym.Env):
         safe_speed_penalty = min(speed_error / norm_speed, 1.0)
         safe_emission_penalty = min(nox_tp / norm_emission, 1.0)
 
-        speed_tolerance = 5.0
-
         reward = 0.0
 
         ## DO NOT EDIT REWARDS HERE; INSTEAD IN config.py!!!!
 
         # Scale factor dictates how wide the "bell" is.
         # A scale of 10.0 means at 10 km/h error, the reward drops significantly.
-        scale_factor = 5.0
+        scale_factor = 10.0
 
         reward += self.config.W_SPEED * np.exp(
             -0.5 * (speed_error / scale_factor) ** 2

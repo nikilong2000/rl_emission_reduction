@@ -1,0 +1,13 @@
+{
+    "model_path": "/Users/niklaslongschiefelbein/local_documents/THESIS/code/rl_emission_reduction/02_rl_control/logs/sac/run_20260405_201155/sac_emission_final",
+    "train_config_path": "/Users/niklaslongschiefelbein/local_documents/THESIS/code/rl_emission_reduction/02_rl_control/logs/sac/run_20260405_201155/train_config.json",
+    "total_reward": 2132.56396484375,
+    "total_fuel_g": 0.0,
+    "total_nox_g": -0.008540154434740543,
+    "mae_speed_kmph": 38.810422012452,
+    "rmse_speed_kmph": 65.11870104238577,
+    "initial_soc": 0.700314998626709,
+    "final_soc": 0.3593599498271942,
+    "delta_soc": -0.34095504879951477,
+    "custom_notes": ""
+}
