@@ -81,19 +81,23 @@ def _build_train_config(algo_key: str, config, args, env_cls=None) -> dict:
     # write reward logic to file
     if env_cls is not None:
         import inspect
+        import textwrap
 
         try:
             source_lines = inspect.getsource(env_cls.step)
             start = source_lines.find("# 6. Calculate Reward")
             end = source_lines.find("# 7. Update State")
             if start != -1 and end != -1:
-                tc["reward_logic"] = source_lines[start:end].strip()
+                # Dedent so it's valid python, then split by line for readable JSON output
+                raw_code = source_lines[start:end]
+                dedented_code = textwrap.dedent(raw_code).strip()
+                tc["reward_logic"] = dedented_code.split('\n')
             else:
-                tc["reward_logic"] = (
+                tc["reward_logic"] = [
                     "Could not parse reward logic from environment source."
-                )
+                ]
         except Exception as e:
-            tc["reward_logic"] = f"Could not parse reward logic: {str(e)}"
+            tc["reward_logic"] = [f"Could not parse reward logic: {str(e)}"]
 
     if hasattr(config, "POLICY_KWARGS"):
         # Store a string representation of the architecture for logging

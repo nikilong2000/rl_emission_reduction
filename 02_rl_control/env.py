@@ -53,10 +53,6 @@ _ICE_DEFAULTS = [
 _PG_COLS = ["car_speed_kmph", "soc_1"]
 _PG_DEFAULTS = [0.0, 0.7]
 
-# bounds for soc because soc == 0 or 1 are invalid values that the plant lstms are not able to handle
-_SOC_LOWER_BOUND = 0.02
-_SOC_UPPER_BOUND = 0.98
-
 
 def _resolve_model_backend(config_module):
     use_onnx = bool(getattr(config_module, "USE_ONNX", False))
