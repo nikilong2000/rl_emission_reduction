@@ -1,0 +1,354 @@
+"""
+env_thermal.py — EmissionControlEnv extended with 3 thermal observation variables.
+
+Thermal variable selection is based on PCA of aftertreatment temperatures
+(see internal_lstm_models/thermal_analysis_results/summary.txt):
+
+  PC1 (85.9% variance): general thermal level — represented by T_gas_eo_K
+  PC2 ( 9.0% variance): DPF substrate dynamics — represented by T_Sub_DPF_K
+  PC3 ( 3.6% variance): engine-out vs tailpipe contrast — represented by T_gas_tp_K
+
+Together these 3 variables cover ~95% of the total thermal state variance.
+
+ICE model output indices (from NN_Application/config.txt):
+  5  → T_gas_eo_K   (exhaust gas temperature, engine-out)
+  12 → T_Sub_DPF_K  (DPF substrate wall temperature)
+  15 → T_gas_tp_K   (exhaust gas temperature, tailpipe)
+"""
+
+import numpy as np
+from gymnasium import spaces
+
+try:
+    from .env import EmissionControlEnv
+except ImportError:
+    from env import EmissionControlEnv
+
+
+# Physical temperature bounds [K] for normalization
+_T_GAS_EO_LOW = 290.0  # WLTC min = 296.57
+_T_GAS_EO_HIGH = 770.0  # WLTC_high max = 749.36
+_T_SUB_DPF_LOW = 290.0  # WLTC min = 297.98
+_T_SUB_DPF_HIGH = 640.0  # WLTC_high max = 617.54
+_T_GAS_TP_LOW = 290.0  # WLTC min = 297.91
+_T_GAS_TP_HIGH = 590.0  # WLTC_high max = 570.81
+
+# ICE model output indices for the three selected thermal variables
+_IDX_T_GAS_EO = 5
+_IDX_T_SUB_DPF = 12
+_IDX_T_GAS_TP = 15
+
+
+class EmissionControlEnvThermal(EmissionControlEnv):
+    """
+    Extends EmissionControlEnv with three thermal observation variables that
+    together capture ~95% of the aftertreatment thermal state (2 PCA components
+    reach 90%, 3 reach 95%).
+
+    Observation space (10 dimensions):
+      [0] Car_Speed_kmph   — vehicle speed
+      [1] Speed_Error      — target - current speed
+      [2] SOC              — battery state-of-charge
+      [3] ICE_Torque_Nm    — engine torque
+      [4] NOx_tp_gps       — tailpipe NOx emission rate
+      [5] Engine_On        — binary engine state
+      [6] SOC_Error        — SOC drift from initial
+      [7] T_gas_eo_K       — exhaust gas temp at engine-out  (PC1 representative)
+      [8] T_Sub_DPF_K      — DPF substrate temperature       (PC2 representative)
+      [9] T_gas_tp_K       — exhaust gas temp at tailpipe    (PC3 representative)
+    """
+
+    def __init__(
+        self,
+        render_mode=None,
+        dataset_path=None,
+        config_module=None,
+        random_target=False,
+        fixed_target_speed=None,
+        eval_mode=False,
+    ):
+        super().__init__(
+            render_mode=render_mode,
+            dataset_path=dataset_path,
+            config_module=config_module,
+            random_target=random_target,
+            fixed_target_speed=fixed_target_speed,
+            eval_mode=eval_mode,
+        )
+
+        # Extend physical bounds with three thermal variables
+        self._obs_physical_low = np.append(
+            self._obs_physical_low, [_T_GAS_EO_LOW, _T_SUB_DPF_LOW, _T_GAS_TP_LOW]
+        ).astype(np.float32)
+        self._obs_physical_high = np.append(
+            self._obs_physical_high,
+            [_T_GAS_EO_HIGH, _T_SUB_DPF_HIGH, _T_GAS_TP_HIGH],
+        ).astype(np.float32)
+
+        # Observation space is [0, 1] after env-level normalisation (12 dims)
+        n_obs = len(self._obs_physical_low)
+        self.observation_space = spaces.Box(
+            low=np.zeros(n_obs, dtype=np.float32),
+            high=np.ones(n_obs, dtype=np.float32),
+            dtype=np.float32,
+        )
+
+        # Thermal state (K), initialised to ambient temperature
+        self.last_t_gas_eo = 298.0
+        self.last_t_sub_dpf = 298.0
+        self.last_t_gas_tp = 298.0
+
+    # ------------------------------------------------------------------
+    # Internal helpers
+    # ------------------------------------------------------------------
+
+    def _build_raw_obs(
+        self,
+        car_speed,
+        speed_error,
+        soc,
+        ice_torque,
+        nox_tp,
+        engine_on,
+        soc_error,
+        t_gas_eo,
+        t_sub_dpf,
+        t_gas_tp,
+    ):
+        return np.array(
+            [
+                car_speed,
+                speed_error,
+                soc,
+                ice_torque,
+                nox_tp,
+                float(engine_on),
+                soc_error,
+                t_gas_eo,
+                t_sub_dpf,
+                t_gas_tp,
+            ],
+            dtype=np.float32,
+        )
+
+    # ------------------------------------------------------------------
+    # Gym interface
+    # ------------------------------------------------------------------
+
+    def reset(self, seed=None, options=None):
+        import pandas as pd
+
+        obs_norm, info = super().reset(seed=seed, options=options)
+
+        # Denormalize the parent's 9-dim [0,1] obs back to physical for appending
+        parent_physical_low = self._obs_physical_low[:9]
+        parent_physical_high = self._obs_physical_high[:9]
+        obs_physical = (
+            obs_norm * (parent_physical_high - parent_physical_low)
+            + parent_physical_low
+        )
+
+        # Reset thermal state dynamically from the first row of the dataset
+        if (
+            not getattr(self, "eval_mode", False)
+            and "t_gas_eo_k" in self.df.columns
+            and not pd.isna(self.df.loc[0, "t_gas_eo_k"])
+        ):
+            self.last_t_gas_eo = float(self.df.loc[0, "t_gas_eo_k"])
+        else:
+            self.last_t_gas_eo = 298.0
+
+        if (
+            not getattr(self, "eval_mode", False)
+            and "t_sub_dpf_k" in self.df.columns
+            and not pd.isna(self.df.loc[0, "t_sub_dpf_k"])
+        ):
+            self.last_t_sub_dpf = float(self.df.loc[0, "t_sub_dpf_k"])
+        else:
+            self.last_t_sub_dpf = 298.0
+
+        if (
+            not getattr(self, "eval_mode", False)
+            and "t_gas_tp_k" in self.df.columns
+            and not pd.isna(self.df.loc[0, "t_gas_tp_k"])
+        ):
+            self.last_t_gas_tp = float(self.df.loc[0, "t_gas_tp_k"])
+        else:
+            self.last_t_gas_tp = 298.0
+
+        # Rebuild full obs including thermal variables, then normalise
+        obs_full = np.append(
+            obs_physical,
+            [self.last_t_gas_eo, self.last_t_sub_dpf, self.last_t_gas_tp],
+        ).astype(np.float32)
+        return self._normalize_obs(obs_full), info
+
+    def step(self, action):
+        # NOTE: We do NOT call super().step() here because the ICE model is
+        # stateful (LSTM). Calling the base step and then re-running the ICE
+        # prediction would advance the hidden states twice. Instead we duplicate
+        # the base logic so the ICE model runs exactly once per step and we can
+        # read the full 16-output prediction including thermal variables.
+
+        # 1. Rescale action from [-1, 1] to physical range
+        scaled_action = self.action_min + (action + 1.0) * 0.5 * (
+            self.action_max - self.action_min
+        )
+        engine_state_req = scaled_action[0]
+        ice_speed_rpm = scaled_action[1]
+        em2_torque_nm = scaled_action[2]
+        fuel_mg = scaled_action[3]
+        brake_perc = scaled_action[4]
+
+        engine_on = engine_state_req >= 0.0
+        if not engine_on:
+            ice_speed_rpm = 0.0
+            fuel_mg = 0.0
+
+        # 2. Ambient conditions
+        if self.random_target:
+            t_amb = 298.0
+            p_amb = 1.005
+        else:
+            t_amb = (
+                self.df.loc[self.current_step, "t_amb_k"]
+                if "t_amb_k" in self.df.columns
+                else (
+                    self.df.loc[self.current_step, "T_amb_K"]
+                    if "T_amb_K" in self.df.columns
+                    else 298.0
+                )
+            )
+            p_amb = (
+                self.df.loc[self.current_step, "p_amb_bar"]
+                if "p_amb_bar" in self.df.columns
+                else 1.005
+            )
+
+        # 3. ICE prediction (single call — advances LSTM state once)
+        ice_inputs = np.array(
+            [[ice_speed_rpm, fuel_mg, t_amb, p_amb]], dtype=np.float32
+        )
+        ice_in_scaled = self.ice_in_scaler.transform(ice_inputs).reshape(1, 1, -1)
+        ice_pred_scaled = self.ice_predict_main(ice_in_scaled)
+        if self.use_onnx:
+            ice_pred = self.ice_out_scaler.inverse_transform(ice_pred_scaled[0])
+        else:
+            ice_pred = self.ice_out_scaler.inverse_transform(ice_pred_scaled.numpy()[0])
+
+        ice_torque = ice_pred[0][0]
+        nox_tp = ice_pred[0][6]
+
+        # Extract thermal variables from the full ICE output
+        t_gas_eo = float(ice_pred[0][_IDX_T_GAS_EO])
+        t_sub_dpf = float(ice_pred[0][_IDX_T_SUB_DPF])
+        t_gas_tp = float(ice_pred[0][_IDX_T_GAS_TP])
+
+        # 4. Drivetrain prediction
+        pg_inputs = np.array(
+            [[ice_speed_rpm, ice_torque, em2_torque_nm, brake_perc]], dtype=np.float32
+        )
+        pg_in_scaled = self.pg_in_scaler.transform(pg_inputs).reshape(1, 1, -1)
+        pg_pred_scaled = self.pg_predict_main(pg_in_scaled)
+        if self.use_onnx:
+            pg_pred = self.pg_out_scaler.inverse_transform(pg_pred_scaled[0])
+        else:
+            pg_pred = self.pg_out_scaler.inverse_transform(pg_pred_scaled.numpy()[0])
+
+        car_speed = pg_pred[0][0]
+        soc = pg_pred[0][1]
+
+        # 5. Reward (identical to base class)
+        if self.random_target:
+            target_speed = self._get_current_target_speed()
+        else:
+            target_speed = self.df.loc[self.current_step, self.target_col_name()]
+        speed_error = abs(target_speed - car_speed)
+        soc_error = abs(soc - self.initial_soc)
+        soc_error_squared = (soc - self.initial_soc) ** 2
+
+        norm_speed = 50.0
+        norm_emission = 0.4
+        norm_fuel = 70.0
+        norm_brake = 100.0
+
+        safe_speed_penalty = min(speed_error / norm_speed, 1.0)
+        safe_emission_penalty = min(nox_tp / norm_emission, 1.0)
+
+        reward = 0.0
+        reward -= self.config.W_SPEED * safe_speed_penalty
+        reward -= self.config.W_EMISSION * safe_emission_penalty
+        reward -= self.config.W_FUEL * (fuel_mg / norm_fuel)
+        reward -= self.config.W_BRAKE * (brake_perc / norm_brake)
+        reward -= self.config.W_SOC * soc_error
+        reward -= self.config.W_SOC_SQUARED * soc_error_squared
+
+        if engine_on and not self.last_engine_on:
+            reward -= self.config.W_FLICKER
+
+        # 6. Update state
+        self.current_step += 1
+        self.last_ice_torque = ice_torque
+        self.last_car_speed = car_speed
+        self.last_soc = soc
+        self.last_nox = nox_tp
+        self.last_engine_on = engine_on
+        self.last_t_gas_eo = t_gas_eo
+        self.last_t_sub_dpf = t_sub_dpf
+        self.last_t_gas_tp = t_gas_tp
+
+        terminated = False
+        truncated = False
+        if self.current_step >= self.max_steps - 1:
+            terminated = True
+
+        if self.random_target:
+            next_target_speed = (
+                self._get_current_target_speed() if not terminated else 0.0
+            )
+        else:
+            next_target_speed = (
+                self.df.loc[self.current_step, self.target_col_name()]
+                if not terminated
+                else 0.0
+            )
+        next_speed_error = next_target_speed - car_speed
+        soc_error_signed = soc - self.initial_soc
+
+        obs = self._normalize_obs(
+            self._build_raw_obs(
+                car_speed,
+                next_speed_error,
+                soc,
+                ice_torque,
+                nox_tp,
+                engine_on,
+                soc_error_signed,
+                t_gas_eo,
+                t_sub_dpf,
+                t_gas_tp,
+            )
+        )
+
+        info = {
+            "time_s": (
+                self.current_step
+                if self.random_target
+                else self.df.loc[self.current_step, "time_s"]
+            ),
+            "target_speed": target_speed,
+            "speed_error": speed_error,
+            "nox": nox_tp,
+            "fuel": fuel_mg,
+            "engine_on": engine_on,
+            "ice_torque": ice_torque,
+            "ice_speed_rpm": ice_speed_rpm,
+            "em2_torque_nm": em2_torque_nm,
+            "brake_perc": brake_perc,
+            "raw_obs": obs,
+            "t_gas_eo_K": t_gas_eo,
+            "t_sub_dpf_K": t_sub_dpf,
+            "t_gas_tp_K": t_gas_tp,
+        }
+
+        return obs, reward, terminated, truncated, info

@@ -1,6 +1,5 @@
 """
 Generic training script for PPO, SAC, and TD3 emission-control agents.
-
 Usage:
     python train.py --algorithm ppo --random_target
     python train.py --algorithm sac --random_target --use_thermal
@@ -14,7 +13,6 @@ import datetime
 import time
 import warnings
 import argparse
-
 import numpy as np
 from stable_baselines3 import PPO, SAC, TD3
 from stable_baselines3.common.noise import NormalActionNoise
@@ -25,9 +23,8 @@ from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize, SubprocV
 current_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.dirname(current_dir))
 sys.path.append(current_dir)
-
 from env import EmissionControlEnv
-from env_thermal import EmissionControlEnvThermal
+    from env_thermal import EmissionControlEnvThermal
 from plotting import TrainingLivePlotCallback, ExplorationEntropyCallback
 from utils.config_utils import config_check, load_config
 from utils.checkpoint_utils import VecNormalizeCheckpointCallback
@@ -37,7 +34,6 @@ warnings.filterwarnings(
     "ignore",
     message="X does not have valid feature names, but MinMaxScaler was fitted with feature names",
 )
-
 # ---------------------------------------------------------------------------
 # Algorithm registry
 # ---------------------------------------------------------------------------
@@ -77,7 +73,6 @@ def _build_train_config(algo_key: str, config, args, env_cls=None) -> dict:
         "continued_run": args.continue_from is not None,
         "continued_from": args.continue_from,
     }
-
     # write reward logic to file
     if env_cls is not None:
         import inspect
@@ -91,18 +86,16 @@ def _build_train_config(algo_key: str, config, args, env_cls=None) -> dict:
                 # Dedent so it's valid python, then split by line for readable JSON output
                 raw_code = source_lines[start:end]
                 dedented_code = textwrap.dedent(raw_code).strip()
-                tc["reward_logic"] = dedented_code.split('\n')
+                tc["reward_logic"] = dedented_code.split("\n")
             else:
                 tc["reward_logic"] = [
                     "Could not parse reward logic from environment source."
                 ]
         except Exception as e:
             tc["reward_logic"] = [f"Could not parse reward logic: {str(e)}"]
-
     if hasattr(config, "POLICY_KWARGS"):
         # Store a string representation of the architecture for logging
         tc["policy_kwargs"] = str(getattr(config, "POLICY_KWARGS"))
-
     # Algorithm-specific hyperparameters
     if algo_key == "ppo":
         tc.update(
@@ -150,7 +143,6 @@ def _build_train_config(algo_key: str, config, args, env_cls=None) -> dict:
                 "action_noise_sigma": config.ACTION_NOISE_SIGMA,
             }
         )
-
     return tc
 
 
@@ -161,11 +153,9 @@ def _build_model_kwargs(algo_key: str, config, env, args, log_dir) -> dict:
         "tensorboard_log": log_dir,
         "device": args.agent_device,
     }
-
     # if continue_from just re-use old kwargs
     if hasattr(config, "POLICY_KWARGS") and not args.continue_from:
         common["policy_kwargs"] = getattr(config, "POLICY_KWARGS")
-
     if algo_key == "ppo":
         common.update(
             {
@@ -219,7 +209,6 @@ def _build_model_kwargs(algo_key: str, config, env, args, log_dir) -> dict:
         )
         if not args.continue_from:
             common["learning_starts"] = config.LEARNING_STARTS
-
     return common
 
 
@@ -230,11 +219,9 @@ def main(args):
             f"Error: Unknown algorithm '{algo_key}'. Choose from: {list(ALGORITHM_REGISTRY.keys())}"
         )
         sys.exit(1)
-
     algo_info = ALGORITHM_REGISTRY[algo_key]
     AlgoClass = algo_info["class"]
     is_on_policy = algo_info["on_policy"]
-
     # GPU setup for the LSTM environment models (TensorFlow)
     try:
         from utils.platform_utils import configure_environment, configure_tf_devices
@@ -244,21 +231,33 @@ def main(args):
     except ImportError:
         print(f"Error: utils.platform_utils not available. Check the import.")
         pass
-
     # Load algorithm-specific config
     config = load_config(current_dir=current_dir, algo_key=algo_key)
+    # Apply JSON hyperparameter overrides (e.g. from HPO best_params.json)
+    if args.config_override:
+        with open(args.config_override) as f:
+            overrides = json.load(f)
+        for key, value in overrides.items():
+            if key == "net_arch":
+                config.POLICY_KWARGS = dict(net_arch=value)
+            else:
+                setattr(config, key.upper(), value)
+        print(f"Applied config overrides from {args.config_override}")
+    # Set random seed for reproducibility
+    if args.seed is not None:
+        from stable_baselines3.common.utils import set_random_seed
 
+        set_random_seed(args.seed)
+        print(f"Random seed set to {args.seed}")
     # Allow CLI flag to override config value for SAC's SDE
     if hasattr(args, "use_sde") and args.use_sde:
         config.USE_SDE = True
-
     # Create Log Directory
     base_log_dir = os.path.join(os.path.dirname(current_dir), "logs", algo_key)
     run_name = datetime.datetime.now().strftime("run_%Y%m%d_%H%M%S")
     log_dir = os.path.join(base_log_dir, run_name)
     os.makedirs(log_dir, exist_ok=True)
     print(f"Logging to {log_dir}")
-
     # Create Environment
     env_cls = EmissionControlEnvThermal if args.use_thermal else EmissionControlEnv
 
@@ -272,19 +271,15 @@ def main(args):
 
     num_envs = 10
     env = SubprocVecEnv([make_env(i) for i in range(num_envs)])
-
     # Build config snapshot for reproducibility
     train_config = _build_train_config(algo_key, config, args, env_cls)
     print(json.dumps(train_config, indent=4))  # print to validate
-
     # VecNormalize
     # On-policy (PPO): normalise both obs and rewards
     # Off-policy (SAC/TD3): normalise nothing to avoid moving targets
     norm_reward_and_obs = is_on_policy
-
     if args.continue_from:
         config_check(args.continue_from, train_config)
-
         vec_norm_path = os.path.join(
             os.path.dirname(args.continue_from), "vec_normalize.pkl"
         )
@@ -310,10 +305,8 @@ def main(args):
             norm_reward=norm_reward_and_obs,
             clip_obs=10.0,
         )
-
     # Build model
     model_kwargs = _build_model_kwargs(algo_key, config, env, args, log_dir)
-
     if args.continue_from:
         print(
             f"Loading existing model from {args.continue_from} to continue training..."
@@ -321,7 +314,6 @@ def main(args):
         model = AlgoClass.load(args.continue_from, env=env, **model_kwargs)
     else:
         model = AlgoClass("MlpPolicy", env, **model_kwargs)
-
     # Callbacks
     CHECKPOINT_FREQ = 100_000
     name_prefix = f"{algo_key}_emission_model"
@@ -338,7 +330,6 @@ def main(args):
     )
     plot_callback = TrainingLivePlotCallback(check_freq=1_000, log_dir=log_dir)
     entropy_callback = ExplorationEntropyCallback(plot_freq=10, log_dir=log_dir)
-
     ### TRAINING ###
     print(40 * "=", f"Starting {algo_key.upper()} Training...")
     training_start_time = time.perf_counter()
@@ -361,7 +352,6 @@ def main(args):
         f"\nTraining finished in {training_duration_seconds:.2f}s "
         f"({training_duration_hms})."
     )
-
     # Save
     final_model_name = f"{algo_key}_emission_final"
     model.save(os.path.join(log_dir, final_model_name))
@@ -369,7 +359,6 @@ def main(args):
     with open(os.path.join(log_dir, "train_config.json"), "w") as f:
         json.dump(train_config, f, indent=4)
     print(f"\nModel and VecNormalize stats saved to {log_dir}")
-
     ### EVALUATING ###
     from eval import evaluate_model
 
@@ -424,6 +413,17 @@ if __name__ == "__main__":
         default=False,
         help="Enable State-Dependent Exploration (SAC only).",
     )
+    parser.add_argument(
+        "--config_override",
+        type=str,
+        default=None,
+        help="Path to JSON file with hyperparameter overrides (e.g. best_params.json).",
+    )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=None,
+        help="Random seed for reproducibility.",
+    )
     args = parser.parse_args()
-
     main(args)
