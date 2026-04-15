@@ -178,16 +178,23 @@ class EmissionControlEnv(gym.Env):
         self.action_max = np.array([1.0, 421.0, 70.0, 100.0], dtype=np.float32)
 
         # define observation space
+        # Physical bounds for min-max normalisation to [0, 1]
+        # [Car_Speed (km/h), Speed_Error (km/h), SOC (0-1), ICE_Torque (Nm),
+        #  NOx (g/step), ICE_Speed (rpm), Fuel (mg), SOC_Error (-1 to 1),
+        #  Normalized_Timer (0-1)]
+        self._obs_physical_low = np.array(
+            [-5.0, -155.0, 0.0, -50.0, 0.0, 0.0, 0.0, -1.0, 0.0], dtype=np.float32
+        )
+        self._obs_physical_high = np.array(
+            [150.0, 155.0, 1.0, 300.0, 0.4, 4000.0, 70.0, 1.0, 1.0], dtype=np.float32
+        )
+
+        # Observation space is [0, 1] after env-level normalisation
         self.observation_space = spaces.Box(
-            low=np.array(
-                [-5.0, -155.0, 0.0, -50.0, 0.0, 900.0, 3.0, -1.0, 0.0], dtype=np.float32
-            ),
-            high=np.array(
-                [150.0, 155.0, 1.0, 300.0, 0.4, 4000.0, 70.0, 1.0, 1.0],
-                dtype=np.float32,
-            ),
+            low=np.zeros(9, dtype=np.float32),
+            high=np.ones(9, dtype=np.float32),
             dtype=np.float32,
-        )  # [Car_Speed (km/h), Speed_Error (km/h), SOC (0-1), ICE_Torque (Nm), NOx (g/step), ICE_Speed (rpm), Fuel (mg), SOC_Error (-1 to 1), Normalized_Timer (0-1)]
+        )
 
     def _get_current_target_speed(self):
         """Return the target speed for the current step from the schedule."""
@@ -304,19 +311,21 @@ class EmissionControlEnv(gym.Env):
         else:
             target_speed = self.df.loc[0, self.target_col_name()]
 
-        obs = np.array(
-            [
-                self.last_car_speed,
-                0.0,  # Initial speed error is exactly 0.0
-                self.last_soc,
-                self.last_ice_torque,
-                self.last_nox,
-                self.last_ice_speed,
-                self.last_fuel,
-                0.0,  # Initial SOC error is exactly 0.0
-                min(float(self.steps_since_last_engine_switch) / 6.0, 1.0),
-            ],
-            dtype=np.float32,
+        obs = self._normalize_obs(
+            np.array(
+                [
+                    self.last_car_speed,
+                    0.0,  # Initial speed error is exactly 0.0
+                    self.last_soc,
+                    self.last_ice_torque,
+                    self.last_nox,
+                    self.last_ice_speed,
+                    self.last_fuel,
+                    0.0,  # Initial SOC error is exactly 0.0
+                    min(float(self.steps_since_last_engine_switch) / 6.0, 1.0),
+                ],
+                dtype=np.float32,
+            )
         )
 
         info = {
@@ -504,19 +513,21 @@ class EmissionControlEnv(gym.Env):
 
         soc_error = soc - self.initial_soc
 
-        obs = np.array(
-            [
-                car_speed,
-                next_speed_error,
-                soc,
-                ice_torque,
-                nox_tp,
-                ice_speed_rpm,
-                fuel_mg,
-                soc_error,
-                min(float(self.steps_since_last_engine_switch) / 6.0, 1.0),
-            ],
-            dtype=np.float32,
+        obs = self._normalize_obs(
+            np.array(
+                [
+                    car_speed,
+                    next_speed_error,
+                    soc,
+                    ice_torque,
+                    nox_tp,
+                    ice_speed_rpm,
+                    fuel_mg,
+                    soc_error,
+                    min(float(self.steps_since_last_engine_switch) / 6.0, 1.0),
+                ],
+                dtype=np.float32,
+            )
         )
 
         info = {
@@ -538,6 +549,22 @@ class EmissionControlEnv(gym.Env):
         }
 
         return obs, reward, terminated, truncated, info
+
+    def _normalize_obs(self, obs: np.ndarray) -> np.ndarray:
+        """Normalize observation from physical range to [0, 1]."""
+        return np.clip(
+            (obs - self._obs_physical_low)
+            / (self._obs_physical_high - self._obs_physical_low),
+            0.0,
+            1.0,
+        ).astype(np.float32)
+
+    def _denormalize_obs(self, obs_norm: np.ndarray) -> np.ndarray:
+        """Convert [0, 1]-normalized observation back to physical scale."""
+        return (
+            obs_norm * (self._obs_physical_high - self._obs_physical_low)
+            + self._obs_physical_low
+        ).astype(np.float32)
 
     def target_col_name(self):
         # Helper to find the speed column

@@ -58,7 +58,15 @@ class EmissionControlEnvThermal(EmissionControlEnv):
       [9] T_gas_tp_K       — exhaust gas temp at tailpipe    (PC3 representative)
     """
 
-    def __init__(self, render_mode=None, dataset_path=None, config_module=None, random_target=False, fixed_target_speed=None, eval_mode=False):
+    def __init__(
+        self,
+        render_mode=None,
+        dataset_path=None,
+        config_module=None,
+        random_target=False,
+        fixed_target_speed=None,
+        eval_mode=False,
+    ):
         super().__init__(
             render_mode=render_mode,
             dataset_path=dataset_path,
@@ -68,17 +76,21 @@ class EmissionControlEnvThermal(EmissionControlEnv):
             eval_mode=eval_mode,
         )
 
-        # Extend obs bounds with the three thermal variables
-        self.obs_low = np.append(
-            self.observation_space.low, [_T_GAS_EO_LOW, _T_SUB_DPF_LOW, _T_GAS_TP_LOW]
+        # Extend physical bounds with three thermal variables
+        self._obs_physical_low = np.append(
+            self._obs_physical_low, [_T_GAS_EO_LOW, _T_SUB_DPF_LOW, _T_GAS_TP_LOW]
         ).astype(np.float32)
-        self.obs_high = np.append(
-            self.observation_space.high,
+        self._obs_physical_high = np.append(
+            self._obs_physical_high,
             [_T_GAS_EO_HIGH, _T_SUB_DPF_HIGH, _T_GAS_TP_HIGH],
         ).astype(np.float32)
 
+        # Observation space is [0, 1] after env-level normalisation (12 dims)
+        n_obs = len(self._obs_physical_low)
         self.observation_space = spaces.Box(
-            low=self.obs_low, high=self.obs_high, dtype=np.float32
+            low=np.zeros(n_obs, dtype=np.float32),
+            high=np.ones(n_obs, dtype=np.float32),
+            dtype=np.float32,
         )
 
         # Thermal state (K), initialised to ambient temperature
@@ -126,36 +138,50 @@ class EmissionControlEnvThermal(EmissionControlEnv):
     def reset(self, seed=None, options=None):
         import pandas as pd
 
-        obs, info = super().reset(seed=seed, options=options)
+        obs_norm, info = super().reset(seed=seed, options=options)
+
+        # Denormalize the parent's 9-dim [0,1] obs back to physical for appending
+        parent_physical_low = self._obs_physical_low[:9]
+        parent_physical_high = self._obs_physical_high[:9]
+        obs_physical = (
+            obs_norm * (parent_physical_high - parent_physical_low)
+            + parent_physical_low
+        )
 
         # Reset thermal state dynamically from the first row of the dataset
-        if not getattr(self, "eval_mode", False) and "t_gas_eo_k" in self.df.columns and not pd.isna(
-            self.df.loc[0, "t_gas_eo_k"]
+        if (
+            not getattr(self, "eval_mode", False)
+            and "t_gas_eo_k" in self.df.columns
+            and not pd.isna(self.df.loc[0, "t_gas_eo_k"])
         ):
             self.last_t_gas_eo = float(self.df.loc[0, "t_gas_eo_k"])
         else:
             self.last_t_gas_eo = 298.0
 
-        if not getattr(self, "eval_mode", False) and "t_sub_dpf_k" in self.df.columns and not pd.isna(
-            self.df.loc[0, "t_sub_dpf_k"]
+        if (
+            not getattr(self, "eval_mode", False)
+            and "t_sub_dpf_k" in self.df.columns
+            and not pd.isna(self.df.loc[0, "t_sub_dpf_k"])
         ):
             self.last_t_sub_dpf = float(self.df.loc[0, "t_sub_dpf_k"])
         else:
             self.last_t_sub_dpf = 298.0
 
-        if not getattr(self, "eval_mode", False) and "t_gas_tp_k" in self.df.columns and not pd.isna(
-            self.df.loc[0, "t_gas_tp_k"]
+        if (
+            not getattr(self, "eval_mode", False)
+            and "t_gas_tp_k" in self.df.columns
+            and not pd.isna(self.df.loc[0, "t_gas_tp_k"])
         ):
             self.last_t_gas_tp = float(self.df.loc[0, "t_gas_tp_k"])
         else:
             self.last_t_gas_tp = 298.0
 
-        # Rebuild obs including thermal variables
-        obs = np.append(
-            obs,
+        # Rebuild full obs including thermal variables, then normalise
+        obs_full = np.append(
+            obs_physical,
             [self.last_t_gas_eo, self.last_t_sub_dpf, self.last_t_gas_tp],
         ).astype(np.float32)
-        return obs, info
+        return self._normalize_obs(obs_full), info
 
     def step(self, action):
         # NOTE: We do NOT call super().step() here because the ICE model is
@@ -277,7 +303,9 @@ class EmissionControlEnvThermal(EmissionControlEnv):
             terminated = True
 
         if self.random_target:
-            next_target_speed = self._get_current_target_speed() if not terminated else 0.0
+            next_target_speed = (
+                self._get_current_target_speed() if not terminated else 0.0
+            )
         else:
             next_target_speed = (
                 self.df.loc[self.current_step, self.target_col_name()]
@@ -287,21 +315,27 @@ class EmissionControlEnvThermal(EmissionControlEnv):
         next_speed_error = next_target_speed - car_speed
         soc_error_signed = soc - self.initial_soc
 
-        obs = self._build_raw_obs(
-            car_speed,
-            next_speed_error,
-            soc,
-            ice_torque,
-            nox_tp,
-            engine_on,
-            soc_error_signed,
-            t_gas_eo,
-            t_sub_dpf,
-            t_gas_tp,
+        obs = self._normalize_obs(
+            self._build_raw_obs(
+                car_speed,
+                next_speed_error,
+                soc,
+                ice_torque,
+                nox_tp,
+                engine_on,
+                soc_error_signed,
+                t_gas_eo,
+                t_sub_dpf,
+                t_gas_tp,
+            )
         )
 
         info = {
-            "time_s": self.current_step if self.random_target else self.df.loc[self.current_step, "time_s"],
+            "time_s": (
+                self.current_step
+                if self.random_target
+                else self.df.loc[self.current_step, "time_s"]
+            ),
             "target_speed": target_speed,
             "speed_error": speed_error,
             "nox": nox_tp,

@@ -125,6 +125,10 @@ def evaluate_model(
 
     env = DummyVecEnv([make_env])
 
+    # Get a reference to the underlying env for denormalizing [0,1] obs
+    # back to physical units (km/h, Nm, rpm, etc.) for plotting
+    underlying_env = env.envs[0].unwrapped
+
     model_dir = os.path.dirname(os.path.abspath(model_path))
     model_basename = os.path.splitext(os.path.basename(model_path))[0]
 
@@ -175,8 +179,13 @@ def evaluate_model(
         "brake_perc": [],
     }
 
+    # Helper to convert [0,1]-normalised env obs back to physical units
+    def _to_physical(obs_01):
+        return underlying_env._denormalize_obs(obs_01)
+
     # Store initial state
-    raw_obs = env.get_original_obs()[0] if vec_normalized else obs[0]
+    raw_obs_01 = env.get_original_obs()[0] if vec_normalized else obs[0]
+    raw_obs = _to_physical(raw_obs_01)
 
     while not done:
         action, _states = model.predict(obs, deterministic=True)
@@ -190,11 +199,14 @@ def evaluate_model(
         if done and "terminal_observation" in i:
             terminal_obs = i["terminal_observation"]
             if vec_normalized:
-                raw_obs = env.unnormalize_obs(np.array([terminal_obs]))[0]
+                raw_obs_01 = env.unnormalize_obs(np.array([terminal_obs]))[0]
             else:
-                raw_obs = terminal_obs
+                raw_obs_01 = terminal_obs
         else:
-            raw_obs = env.get_original_obs()[0] if vec_normalized else obs[0]
+            raw_obs_01 = env.get_original_obs()[0] if vec_normalized else obs[0]
+
+        # Denormalize from [0,1] env scale back to physical units
+        raw_obs = _to_physical(raw_obs_01)
 
         eval_results["speed_actual"].append(raw_obs[0])
         eval_results["speed_target"].append(
