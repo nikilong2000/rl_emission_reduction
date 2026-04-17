@@ -3,18 +3,16 @@ import os
 ## DIRECTORIES START
 # Base Directories
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
-PROJECT_ROOT = os.path.abspath(os.path.join(CURRENT_DIR, "..", ".."))
+PROJECT_ROOT = os.path.abspath(os.path.join(CURRENT_DIR, ".."))
 
 # Model Paths
-ICE_MODEL_DIR = os.path.join(PROJECT_ROOT, "02_rl_control/plant_lstms/tf/ICE")
-PG_MODEL_DIR = os.path.join(PROJECT_ROOT, "02_rl_control/plant_lstms/tf/Drivetrain")
-ICE_MODEL_DIR_ONNX = os.path.join(PROJECT_ROOT, "02_rl_control/plant_lstms/onnx/ICE")
-PG_MODEL_DIR_ONNX = os.path.join(
-    PROJECT_ROOT, "02_rl_control/plant_lstms/onnx/Drivetrain"
-)
+ICE_MODEL_DIR = os.path.join(PROJECT_ROOT, "plant_lstms/tf/ICE")
+PG_MODEL_DIR = os.path.join(PROJECT_ROOT, "plant_lstms/tf/Drivetrain")
+ICE_MODEL_DIR_ONNX = os.path.join(PROJECT_ROOT, "plant_lstms/onnx/ICE")
+PG_MODEL_DIR_ONNX = os.path.join(PROJECT_ROOT, "plant_lstms/onnx/Drivetrain")
 
 # Data Paths
-TRAIN_DATA_DIR = os.path.join(PROJECT_ROOT, "02_rl_control/data_train")
+TRAIN_DATA_DIR = os.path.join(PROJECT_ROOT, "data_train")
 
 ## DIRECTORIES END
 ############################

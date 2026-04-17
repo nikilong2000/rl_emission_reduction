@@ -3,9 +3,12 @@
 #SBATCH --time=48:00:00
 #SBATCH --chdir=.
 #SBATCH --nodes=1
+#SBATCH --ntasks-per-node=1
+#SBATCH --cpus-per-task=8
+#SBATCH --array=1-10
 #SBATCH --exclusive
-#SBATCH -o hpo_%x_%j.out
-#SBATCH -e hpo_%x_%j.err
+#SBATCH -o hpo_%x_%A_%a.out
+#SBATCH -e hpo_%x_%A_%a.err
 # ============================================================================
 # HPO LAUNCHER — Optuna hyperparameter search
 # ============================================================================
@@ -38,15 +41,16 @@ echo "Number of Threads:     $NUM_THREADS"
 echo "Execution Start Time:  $(date '+%Y-%m-%d %H:%M:%S')"
 echo "============================================================================"
 echo ""
-# ============================================================================
 # Configuration — edit these before submitting
 # ============================================================================
 ALGORITHM="ppo"           # ppo | sac | td3
-N_TRIALS=50               # number of Optuna trials
+N_TRIALS=5                # trials PER NODE. Total = N_TRIALS * SLURM_ARRAY_TASK_COUNT
+N_ENVS=8                  # parallel envs per trial (match cpus-per-task)
 TRIAL_TIMESTEPS=4000000   # training steps per trial
-DEVICE="auto"             # cpu | cuda | auto
+DEVICE="cpu"             # cpu | cuda | auto
 echo "Algorithm:       $ALGORITHM"
-echo "Trials:          $N_TRIALS"
+echo "Trials/Node:     $N_TRIALS"
+echo "Subenvs:         $N_ENVS"
 echo "Steps/trial:     $TRIAL_TIMESTEPS"
 echo "Device:          $DEVICE"
 echo ""
@@ -56,6 +60,7 @@ echo ""
 python 02_rl_control/hyperparameter_search/tune_hpo.py \
     --algorithm "$ALGORITHM" \
     --n_trials "$N_TRIALS" \
+    --n_envs "$N_ENVS" \
     --trial_timesteps "$TRIAL_TIMESTEPS" \
     --agent_device "$DEVICE" \
     --n_jobs 1

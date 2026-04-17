@@ -1,3 +1,6 @@
+# Cluster transfer credentials (never commit)
+02_rl_control/.transfer_config
+
 .idea/
 
 # Created by https://www.gitignore.io/api/macos,linux,django,python,pycharm

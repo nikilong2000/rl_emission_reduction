@@ -53,7 +53,6 @@ warnings.filterwarnings(
 ALGO_CLASSES = {"ppo": PPO, "sac": SAC, "td3": TD3}
 ALGO_ON_POLICY = {"ppo": True, "sac": False, "td3": False}
 N_EVAL_EPISODES = 5
-N_ENVS = 20
 EVAL_FREQ_TIMESTEPS = 500_000
 PRUNE_WARMUP_STEPS = 2_000_000
 
@@ -206,7 +205,7 @@ def _build_trial_model_kwargs(algo_key, resolved, config, env, log_dir, device):
 # ---------------------------------------------------------------------------
 # Objective function
 # ---------------------------------------------------------------------------
-def objective(trial, algo_key, total_timesteps, base_log_dir, device):
+def objective(trial, algo_key, total_timesteps, n_envs, base_log_dir, device):
     """Train one SB3 agent and return speed-tracking RMSE."""
     trial_dir = os.path.join(base_log_dir, f"trial_{trial.number:03d}")
     os.makedirs(trial_dir, exist_ok=True)
@@ -230,7 +229,7 @@ def objective(trial, algo_key, total_timesteps, base_log_dir, device):
 
         return _init
 
-    env = SubprocVecEnv([make_env(i) for i in range(N_ENVS)])
+    env = SubprocVecEnv([make_env(i) for i in range(n_envs)])
     env = VecNormalize(
         env, norm_obs=is_on_policy, norm_reward=is_on_policy, clip_obs=10.0
     )
@@ -324,7 +323,7 @@ def main(args):
     )
     study.optimize(
         lambda trial: objective(
-            trial, algo_key, args.trial_timesteps, base_log_dir, args.agent_device
+            trial, algo_key, args.trial_timesteps, args.n_envs, base_log_dir, args.agent_device
         ),
         n_trials=args.n_trials,
         n_jobs=args.n_jobs,
@@ -374,6 +373,12 @@ if __name__ == "__main__":
         type=int,
         default=1,
         help="Parallel Optuna workers (1 = sequential, safe for shared storage).",
+    )
+    parser.add_argument(
+        "--n_envs",
+        type=int,
+        default=8,
+        help="Number of parallel environments (should match node core count).",
     )
     parser.add_argument(
         "--trial_timesteps",
