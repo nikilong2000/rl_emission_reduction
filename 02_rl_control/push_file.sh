@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+sub#!/usr/bin/env bash
 # =============================================================================
 # push_file.sh  —  Transfer a SINGLE FILE from local to remote cluster.
 #

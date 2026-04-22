@@ -131,7 +131,7 @@ class TrialEvalCallback(BaseCallback):
 def _build_trial_model_kwargs(algo_key, resolved, config, env, log_dir, device):
     """Build SB3 constructor kwargs from resolved HPO params + config defaults."""
     kwargs = {
-        "verbose": 0,
+        "verbose": 1,
         "tensorboard_log": log_dir,
         "device": device,
     }

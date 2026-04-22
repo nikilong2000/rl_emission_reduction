@@ -7,8 +7,8 @@
 #SBATCH --cpus-per-task=8
 #SBATCH --array=1-10
 #SBATCH --exclusive
-#SBATCH -o hpo_%x_%A_%a.out
-#SBATCH -e hpo_%x_%A_%a.err
+#SBATCH -o slurm_logs/%x_%A_%a.out
+#SBATCH -e slurm_logs/%x_%A_%a.err
 # ============================================================================
 # HPO LAUNCHER — Optuna hyperparameter search
 # ============================================================================

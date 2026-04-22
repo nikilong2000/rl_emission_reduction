@@ -1,6 +1,9 @@
 # Cluster transfer credentials (never commit)
 02_rl_control/.transfer_config
 
+# Cluster logs from hyperparameter optimisation (way too many changes)
+02_rl_control/logs_cluster
+
 .idea/
 
 # Created by https://www.gitignore.io/api/macos,linux,django,python,pycharm

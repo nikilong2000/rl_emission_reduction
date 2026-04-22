@@ -19,7 +19,7 @@ TRAIN_DATA_DIR = os.path.join(PROJECT_ROOT, "data_train")
 
 ## TRAINING START
 # Runtime Selection
-USE_ONNX = False
+USE_ONNX = True
 
 # Training Configuration
 TOTAL_TIMESTEPS = 4_000_000

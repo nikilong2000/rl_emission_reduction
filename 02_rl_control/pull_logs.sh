@@ -28,7 +28,7 @@ LOCAL_DEST=""
 usage() {
     echo "Usage: $0 [-r <remote_logs_subpath>] [-o <local_dest>] [-c <config_file>]"
     echo "  -r   Subpath under REMOTE_BASE_DIR to pull (default: logs)"
-    echo "  -o   Local destination directory (default: SCRIPT_DIR)"
+    echo "  -o   Local destination directory (default: SCRIPT_DIR/logs_cluster)"
     echo "  -c   Config file path"
     exit 1
 }
@@ -72,7 +72,7 @@ REMOTE_LOGS_DIR="$REMOTE_BASE_DIR/$REMOTE_LOGS_SUBPATH"
 REMOTE_LOGS_PARENT="$(dirname "$REMOTE_LOGS_DIR")"
 REMOTE_LOGS_DIRNAME="$(basename "$REMOTE_LOGS_DIR")"
 
-LOCAL_DEST="${LOCAL_DEST:-$LOCAL_BASE_DIR/$(dirname "$REMOTE_LOGS_SUBPATH")}"
+LOCAL_DEST="${LOCAL_DEST:-$LOCAL_BASE_DIR/logs_cluster}"
 mkdir -p "$LOCAL_DEST"
 
 # ---------------------------------------------------------------------------
@@ -117,6 +117,9 @@ echo "==> Transferring to local: $TMPDIR_LOCAL/$TAR_NAME"
 
 echo "==> Cleaning up remote tarball"
 "${SSH_BASE[@]}" "$REMOTE" "rm -f '$REMOTE_TMP_TAR'"
+
+echo "==> Wiping previous local logs at: $LOCAL_DEST/$REMOTE_LOGS_DIRNAME"
+rm -rf "$LOCAL_DEST/$REMOTE_LOGS_DIRNAME"
 
 echo "==> Extracting to: $LOCAL_DEST"
 tar -xvf "$TMPDIR_LOCAL/$TAR_NAME" -C "$LOCAL_DEST"
