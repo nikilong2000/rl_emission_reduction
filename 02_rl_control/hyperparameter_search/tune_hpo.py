@@ -323,7 +323,12 @@ def main(args):
     )
     study.optimize(
         lambda trial: objective(
-            trial, algo_key, args.trial_timesteps, args.n_envs, base_log_dir, args.agent_device
+            trial,
+            algo_key,
+            args.trial_timesteps,
+            args.n_envs,
+            base_log_dir,
+            args.agent_device,
         ),
         n_trials=args.n_trials,
         n_jobs=args.n_jobs,
@@ -341,7 +346,18 @@ def main(args):
     # All-trials summary CSV
     rows = []
     for t in study.trials:
-        row = {"number": t.number, "value": t.value, "state": str(t.state)}
+        if t.datetime_start and t.datetime_complete:
+            duration_s = (t.datetime_complete - t.datetime_start).total_seconds()
+        else:
+            duration_s = None
+        row = {
+            "number": t.number,
+            "value": t.value,
+            "state": str(t.state),
+            "datetime_start": t.datetime_start,
+            "datetime_complete": t.datetime_complete,
+            "duration_s": duration_s,
+        }
         row.update(t.params)
         rows.append(row)
     pd.DataFrame(rows).to_csv(os.path.join(base_log_dir, "all_trials.csv"), index=False)

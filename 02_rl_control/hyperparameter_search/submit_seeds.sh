@@ -1,12 +1,12 @@
 #!/bin/bash
 #SBATCH --job-name=hpo_seeds
-#SBATCH --time=06:00:00
+#SBATCH --time=72:00:00
 #SBATCH --chdir=.
-#SBATCH --nodes=1
-#SBATCH --exclusive
 #SBATCH --array=0-9
-#SBATCH -o seed_%a_%x_%j.out
-#SBATCH -e seed_%a_%x_%j.err
+#SBATCH --nodelist=jff111,jff116
+#SBATCH --ntasks-per-core=1
+#SBATCH -o slurm_logs/%x_%A_%a.out
+#SBATCH -e slurm_logs/%x_%A_%a.err
 # ============================================================================
 # SEED VALIDATION LAUNCHER — 10 seeds with best HPO config
 # ============================================================================
