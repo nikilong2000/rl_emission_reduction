@@ -13,7 +13,16 @@ def config_check(continue_from, train_config):
         if "configuration" in prev_metrics:
             prev_config = prev_metrics["configuration"]
 
-            keys_to_ignore = {"total_timesteps", "continued_run", "continued_from"}
+            keys_to_ignore = {
+                "total_timesteps",
+                "continued_run",
+                "continued_from",
+                "w_emission",
+                "w_soc",
+                "w_soc_squared",
+                "w_fuel",
+                "reward_logic",
+            }
             mismatches = []
             for k, v in train_config.items():
                 if k in keys_to_ignore:

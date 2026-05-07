@@ -181,18 +181,34 @@ class EmissionControlEnv(gym.Env):
         # Physical bounds for min-max normalisation to [0, 1]
         # [Car_Speed (km/h), Speed_Error (km/h), SOC (0-1), ICE_Torque (Nm),
         #  NOx (g/step), ICE_Speed (rpm), Fuel (mg), SOC_Error (-1 to 1),
-        #  Normalized_Timer (0-1)]
+        #  Normalized_Timer (0-1), Last_EM2_Torque (Nm), Last_Brake (%),
+        #  T_Wall_SCR1 (K)]
         self._obs_physical_low = np.array(
-            [-5.0, -155.0, 0.0, -50.0, 0.0, 0.0, 0.0, -1.0, 0.0], dtype=np.float32
+            [-5.0, -155.0, 0.0, -50.0, 0.0, 0.0, 0.0, -1.0, 0.0, -421.0, 0.0, 298.0],
+            dtype=np.float32,
         )
         self._obs_physical_high = np.array(
-            [150.0, 155.0, 1.0, 300.0, 0.4, 4000.0, 70.0, 1.0, 1.0], dtype=np.float32
+            [
+                150.0,
+                155.0,
+                1.0,
+                300.0,
+                0.4,
+                4000.0,
+                70.0,
+                1.0,
+                1.0,
+                421.0,
+                100.0,
+                1240.0,
+            ],
+            dtype=np.float32,
         )
 
         # Observation space is [0, 1] after env-level normalisation
         self.observation_space = spaces.Box(
-            low=np.zeros(9, dtype=np.float32),
-            high=np.ones(9, dtype=np.float32),
+            low=np.zeros(12, dtype=np.float32),
+            high=np.ones(12, dtype=np.float32),
             dtype=np.float32,
         )
 
@@ -301,6 +317,9 @@ class EmissionControlEnv(gym.Env):
         self.last_soc = pg_init_val_row[1]  # SOC
         self.initial_soc = self.last_soc
         self.last_nox = ice_init_val_row[6]  # nox_tp_gps
+        self.last_t_wall_scr1 = ice_init_val_row[10]  # t_wall_scr1_k
+        self.last_em2_torque = 0.0
+        self.last_brake_perc = 0.0
         self.last_engine_on = (
             True if ice_init_val_row[1] >= 0.1 else False
         )  # value by Markus to approximate initial state
@@ -323,6 +342,9 @@ class EmissionControlEnv(gym.Env):
                     self.last_fuel,
                     0.0,  # Initial SOC error is exactly 0.0
                     min(float(self.steps_since_last_engine_switch) / 6.0, 1.0),
+                    self.last_em2_torque,
+                    self.last_brake_perc,
+                    self.last_t_wall_scr1,
                 ],
                 dtype=np.float32,
             )
@@ -417,8 +439,10 @@ class EmissionControlEnv(gym.Env):
 
         # Index 0: ICE_Torque_Nm
         # Index 6: NOx_tp_gps (Tailpipe)
+        # Index 10: T_Wall_SCR1_K
         ice_torque = ice_pred[0][0]
         nox_tp = ice_pred[0][6]
+        t_wall_scr1 = ice_pred[0][10]
 
         # 4. Prepare Inputs for PG Model
         # Inputs: "ICE_Speed_rpm", "ICE: ICE_Torque_Nm", "EM2_Torque_Nm", "Brake_perc"
@@ -491,6 +515,9 @@ class EmissionControlEnv(gym.Env):
         self.last_engine_on = engine_on
         self.last_ice_speed = ice_speed_rpm
         self.last_fuel = fuel_mg
+        self.last_em2_torque = em2_torque_nm
+        self.last_brake_perc = brake_perc
+        self.last_t_wall_scr1 = t_wall_scr1
 
         terminated = False
         truncated = False
@@ -525,6 +552,9 @@ class EmissionControlEnv(gym.Env):
                     fuel_mg,
                     soc_error,
                     min(float(self.steps_since_last_engine_switch) / 6.0, 1.0),
+                    em2_torque_nm,
+                    brake_perc,
+                    t_wall_scr1,
                 ],
                 dtype=np.float32,
             )

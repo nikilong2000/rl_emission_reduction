@@ -241,6 +241,9 @@ def evaluate_model(
     initial_soc = soc[0]
     final_soc = soc[-1]
     delta_soc = final_soc - initial_soc
+    soc_drift = soc - initial_soc
+    max_abs_soc_drift = float(np.max(np.abs(soc_drift)))
+    rms_soc_drift = float(np.sqrt(np.mean(soc_drift**2)))
 
     # Keep evaluation metrics focused on evaluation outputs only.
     # Training configuration is already persisted in train_config.json.
@@ -259,6 +262,8 @@ def evaluate_model(
             "initial_soc": float(initial_soc),
             "final_soc": float(final_soc),
             "delta_soc": float(delta_soc),
+            "max_abs_soc_drift": max_abs_soc_drift,
+            "rms_soc_drift": rms_soc_drift,
             "custom_notes": "",
         }
     )
