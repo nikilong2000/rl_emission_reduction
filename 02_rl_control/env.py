@@ -53,22 +53,6 @@ _ICE_DEFAULTS = [
 _PG_COLS = ["car_speed_kmph", "soc_1"]
 _PG_DEFAULTS = [0.0, 0.7]
 
-# bounds for soc because soc == 0 or 1 are invalid values that the plant lstms are not able to handle
-_SOC_LOWER_BOUND = 0.02
-_SOC_UPPER_BOUND = 0.98
-
-
-def _load_default_config_module():
-    if "config" in sys.modules:
-        return sys.modules["config"]
-    try:
-        return importlib.import_module("config")
-    except ImportError as exc:
-        raise ImportError(
-            "Could not resolve a config module. Pass config_module=... when "
-            "creating EmissionControlEnv."
-        ) from exc
-
 
 def _resolve_model_backend(config_module):
     use_onnx = bool(getattr(config_module, "USE_ONNX", False))
@@ -79,7 +63,7 @@ def _resolve_model_backend(config_module):
 
             ice_dir = config_module.ICE_MODEL_DIR_ONNX
             drivetrain_dir = config_module.PG_MODEL_DIR_ONNX
-            print("USING ONNX")
+            print(20 * "-", " USING ONNX ", 20 * "-")
             return use_onnx, load_network, set_states, ice_dir, drivetrain_dir
         except ImportError:
             print("Warning: ONNX_Predict.utilities not found. Falling back to TF2.18.")
@@ -92,7 +76,7 @@ def _resolve_model_backend(config_module):
 
     ice_dir = config_module.ICE_MODEL_DIR
     drivetrain_dir = config_module.PG_MODEL_DIR
-    print("USING TF2.18")
+    print(20 * "-", "USING TF2.18", 20 * "-")
     return use_onnx, load_network, set_states, ice_dir, drivetrain_dir
 
 
@@ -101,17 +85,34 @@ class EmissionControlEnv(gym.Env):
     Gym Environment for controlling ICE and Drivetrain to minimize emissions and track speed.
     """
 
-    metadata = {"render_modes": ["human"]}
+    _RANDOM_TARGET_EPISODE_LENGTH = 3600
+    _SEGMENT_LENGTH = 600  # steps per target-speed segment (300 s at dt=0.5)
 
-    def __init__(self, render_mode=None, dataset_path=None, config_module=None):
+    def __init__(
+        self,
+        render_mode=None,
+        dataset_path=None,
+        config_module=None,
+        random_target=False,
+        fixed_target_speed=None,
+        eval_mode=False,
+    ):
         super().__init__()
 
         self.dataset_path = dataset_path
-        self.config = (
-            config_module
-            if config_module is not None
-            else _load_default_config_module()
+        self.eval_mode = eval_mode
+        self.random_target = random_target
+        self.fixed_target_speed = fixed_target_speed
+
+        # If eval_mode or fixed_target_speed is True, we use random_target logic for scheduling
+        if self.fixed_target_speed is not None or self.eval_mode:
+            self.random_target = True
+
+        self.target_speed = (
+            0.0  # current segment target; updated by _get_current_target_speed
         )
+        self.target_speed_schedule = []  # list of (start_step, speed) tuples
+        self.config = config_module
 
         (
             self.use_onnx,
@@ -139,6 +140,9 @@ class EmissionControlEnv(gym.Env):
         self.df = None
         self.max_steps = 0
         self.current_step = 0
+        self.steps_since_last_engine_switch = 0
+        self.last_ice_speed = 0.0
+        self.last_fuel = 0.0
 
         print("Loading ICE Model...")
         self.ice_tuple = self.load_network(self.ice_model_dir)
@@ -165,19 +169,58 @@ class EmissionControlEnv(gym.Env):
         # define action space
         # normalise actions to [-1, 1] and rescale inside step
         self.action_space = spaces.Box(
-            low=-1.0, high=1.0, shape=(5,), dtype=np.float32
-        )  # [Engine_State, ICE_Speed, EM2_Torque, Fuel_Mass, Brake]
+            low=-1.0, high=1.0, shape=(4,), dtype=np.float32
+        )  # [ICE_Command, EM2_Torque, Fuel_Mass, Brake]
 
         # action scaling (Min/Max values for rescaling)
-        self.action_min = np.array([-1.0, 900.0, -421.0, 3.0, 0.0], dtype=np.float32)
-        self.action_max = np.array([1.0, 4000.0, 421.0, 70.0, 100.0], dtype=np.float32)
+        # Note: ICE_Command is custom mapped in step(), its bounds just pass through [-1.0, 1.0]
+        self.action_min = np.array([-1.0, -421.0, 3.0, 0.0], dtype=np.float32)
+        self.action_max = np.array([1.0, 421.0, 70.0, 100.0], dtype=np.float32)
 
         # define observation space
-        self.observation_space = spaces.Box(
-            low=np.array([-5.0, -155.0, 0.0, -50.0, 0.0, 0.0, -1.0], dtype=np.float32),
-            high=np.array([150.0, 155.0, 1.0, 300.0, 0.4, 1.0, 1.0], dtype=np.float32),
+        # Physical bounds for min-max normalisation to [0, 1]
+        # [Car_Speed (km/h), Speed_Error (km/h), SOC (0-1), ICE_Torque (Nm),
+        #  NOx (g/step), ICE_Speed (rpm), Fuel (mg), SOC_Error (-1 to 1),
+        #  Normalized_Timer (0-1), Last_EM2_Torque (Nm), Last_Brake (%),
+        #  T_Wall_SCR1 (K)]
+        self._obs_physical_low = np.array(
+            [-5.0, -155.0, 0.0, -50.0, 0.0, 0.0, 0.0, -1.0, 0.0, -421.0, 0.0, 298.0],
             dtype=np.float32,
-        )  # [Car_Speed (km/h), Speed_Error (km/h), SOC (0-1), ICE_Torque (Nm), NOx (g/s), Engine_On (0-1), SOC_Error (-1 to 1)]
+        )
+        self._obs_physical_high = np.array(
+            [
+                150.0,
+                155.0,
+                1.0,
+                300.0,
+                0.4,
+                4000.0,
+                70.0,
+                1.0,
+                1.0,
+                421.0,
+                100.0,
+                1240.0,
+            ],
+            dtype=np.float32,
+        )
+
+        # Observation space is [0, 1] after env-level normalisation
+        self.observation_space = spaces.Box(
+            low=np.zeros(12, dtype=np.float32),
+            high=np.ones(12, dtype=np.float32),
+            dtype=np.float32,
+        )
+
+    def _get_current_target_speed(self):
+        """Return the target speed for the current step from the schedule."""
+        target = self.target_speed_schedule[0][1]  # fallback to first segment
+        for start_step, speed in self.target_speed_schedule:
+            if self.current_step >= start_step:
+                target = speed
+            else:
+                break
+        return target
 
     def reset(self, seed=None, options=None):
         super().reset(seed=seed)
@@ -189,20 +232,58 @@ class EmissionControlEnv(gym.Env):
         else:
             chosen_file = random.choice(self.data_files)
 
-        print("\nUsing", str(chosen_file), ".")
-
         self.df = pd.read_csv(chosen_file, delimiter=";", encoding="latin1")
         if self.df.shape[1] <= 1:
             self.df = pd.read_csv(chosen_file, delimiter=",", encoding="latin1")
 
         # clean column names
         self.df.columns = [col.strip() for col in self.df.columns]
-        self.max_steps = len(self.df)
+
+        # episode length: fixed for random-target mode, CSV length otherwise
+        if self.eval_mode and self.fixed_target_speed is None:
+            self.max_steps = 3600
+            self.target_speed_schedule = [
+                (0, 50.0),
+                (600, 70.0),
+                (1200, 110.0),
+                (1800, 140.0),
+                (2400, 80.0),
+                (3000, 35.0),
+            ]
+            self.target_speed = self.target_speed_schedule[0][1]
+            schedule_str = ", ".join(
+                f"{spd:.0f}" for _, spd in self.target_speed_schedule
+            )
+            print(f"Eval Mode Target speed schedule (km/h): [{schedule_str}]")
+        elif self.random_target:
+            self.max_steps = self._RANDOM_TARGET_EPISODE_LENGTH
+            if self.fixed_target_speed is not None:
+                # Single fixed target for the entire episode (evaluation mode)
+                self.target_speed_schedule = [(0, self.fixed_target_speed)]
+            else:
+                # Multi-segment: new random target every _SEGMENT_LENGTH steps
+                self.target_speed_schedule = []
+                for seg_start in range(0, self.max_steps, self._SEGMENT_LENGTH):
+                    self.target_speed_schedule.append(
+                        (seg_start, random.uniform(0, 150))
+                    )
+            self.target_speed = self.target_speed_schedule[0][1]
+            schedule_str = ", ".join(
+                f"{spd:.0f}" for _, spd in self.target_speed_schedule
+            )
+            print(f"Target speed schedule (km/h): [{schedule_str}]")
+        else:
+            self.max_steps = len(self.df)
+            print("\nUsing", str(chosen_file), " file.")
 
         # initialise models based on initial state in cycle
         ice_init_val_row = []
         for c, d in zip(_ICE_COLS, _ICE_DEFAULTS):
-            if c in self.df.columns and not pd.isna(self.df.loc[0, c]):
+            if (
+                not self.eval_mode
+                and c in self.df.columns
+                and not pd.isna(self.df.loc[0, c])
+            ):
                 ice_init_val_row.append(float(self.df.loc[0, c]))
             else:
                 ice_init_val_row.append(d)
@@ -215,7 +296,11 @@ class EmissionControlEnv(gym.Env):
 
         pg_init_val_row = []
         for c, d in zip(_PG_COLS, _PG_DEFAULTS):
-            if c in self.df.columns and not pd.isna(self.df.loc[0, c]):
+            if (
+                not self.eval_mode
+                and c in self.df.columns
+                and not pd.isna(self.df.loc[0, c])
+            ):
                 pg_init_val_row.append(float(self.df.loc[0, c]))
             else:
                 pg_init_val_row.append(d)
@@ -232,27 +317,41 @@ class EmissionControlEnv(gym.Env):
         self.last_soc = pg_init_val_row[1]  # SOC
         self.initial_soc = self.last_soc
         self.last_nox = ice_init_val_row[6]  # nox_tp_gps
+        self.last_t_wall_scr1 = ice_init_val_row[10]  # t_wall_scr1_k
+        self.last_em2_torque = 0.0
+        self.last_brake_perc = 0.0
         self.last_engine_on = (
             True if ice_init_val_row[1] >= 0.1 else False
         )  # value by Markus to approximate initial state
+        self.steps_since_last_engine_switch = 6  # Allow immediate switch on first step
 
-        target_speed = self.df.loc[0, self.target_col_name()]
+        if self.random_target:
+            target_speed = self.target_speed
+        else:
+            target_speed = self.df.loc[0, self.target_col_name()]
 
-        obs = np.array(
-            [
-                self.last_car_speed,
-                0.0,  # Initial speed error is exactly 0.0
-                self.last_soc,
-                self.last_ice_torque,
-                self.last_nox,
-                float(self.last_engine_on),
-                0.0,  # Initial SOC error is exactly 0.0
-            ],
-            dtype=np.float32,
+        obs = self._normalize_obs(
+            np.array(
+                [
+                    self.last_car_speed,
+                    0.0,  # Initial speed error is exactly 0.0
+                    self.last_soc,
+                    self.last_ice_torque,
+                    self.last_nox,
+                    self.last_ice_speed,
+                    self.last_fuel,
+                    0.0,  # Initial SOC error is exactly 0.0
+                    min(float(self.steps_since_last_engine_switch) / 6.0, 1.0),
+                    self.last_em2_torque,
+                    self.last_brake_perc,
+                    self.last_t_wall_scr1,
+                ],
+                dtype=np.float32,
+            )
         )
 
         info = {
-            "time_s": self.df.loc[0, "time_s"],
+            "time_s": 0 if self.random_target else self.df.loc[0, "time_s"],
             "car_speed_kmph": target_speed,
         }
         return obs, info
@@ -271,31 +370,60 @@ class EmissionControlEnv(gym.Env):
         # print(f"  Fuel_Mass_mg: {scaled_action[3]}")
         # print(f"  Brake_Perc: {scaled_action[4]}")
 
-        engine_state_req = scaled_action[0]
-        ice_speed_rpm = scaled_action[1]
-        em2_torque_nm = scaled_action[2]
-        fuel_mg = scaled_action[3]
-        brake_perc = scaled_action[4]
+        ice_command = scaled_action[0]
+        em2_torque_nm = scaled_action[1]
+        fuel_mg = scaled_action[2]
+        brake_perc = scaled_action[3]
 
-        # Enforce Engine Off bounds
-        # If engine_state_req < 0, ICE is commanded OFF
-        engine_on = engine_state_req >= 0.0
+        if ice_command <= 0.0:
+            engine_on = False
+            ice_speed_rpm = 0.0
+            fuel_mg = 0.0
+        else:
+            engine_on = True
+            # Map top half (0.0, 1.0] to [900, 4000]
+            ice_speed_rpm = 900.0 + (ice_command * (4000.0 - 900.0))
+
+        # Prevent battery overcharging / overdischarging via Action Safety Filter
+        # If battery is almost full, block charging (negative EM2 torque)
+        if self.last_soc >= 0.98 and em2_torque_nm < 0.0:
+            em2_torque_nm = 0.0
+        # If battery is almost empty, block discharging (positive EM2 torque)
+        elif self.last_soc <= 0.02 and em2_torque_nm > 0.0:
+            em2_torque_nm = 0.0
+
+        # Enforce minimum time in current engine state (on/off)
+        if engine_on != self.last_engine_on and self.steps_since_last_engine_switch < 6:
+            engine_on = self.last_engine_on
+            if engine_on:
+                ice_speed_rpm = 900.0
+                fuel_mg = 3.0
+
+        if engine_on == self.last_engine_on:
+            self.steps_since_last_engine_switch += 1
+        else:
+            self.steps_since_last_engine_switch = 1
+
         if not engine_on:
             ice_speed_rpm = 0.0
             fuel_mg = 0.0
 
         # 2. Prepare Inputs for ICE Model
         # Inputs: "ICE_Speed_rpm", "fuel_mg", "T_amb_K", "p_amb_bar"
-        t_amb = (
-            self.df.loc[self.current_step, "t_amb_k"]
-            if "t_amb_k" in self.df.columns
-            else 298.0
-        )
-        p_amb = (
-            self.df.loc[self.current_step, "p_amb_bar"]
-            if "p_amb_bar" in self.df.columns
-            else 1.005
-        )
+        if self.random_target:
+            t_amb = 298.0
+            p_amb = 1.005
+        else:
+            t_amb = (
+                self.df.loc[self.current_step, "t_amb_k"]
+                if "t_amb_k" in self.df.columns
+                else 298.0
+            )
+            p_amb = (
+                self.df.loc[self.current_step, "p_amb_bar"]
+                if "p_amb_bar" in self.df.columns
+                else 1.005
+            )
 
         ice_inputs = np.array(
             [[ice_speed_rpm, fuel_mg, t_amb, p_amb]], dtype=np.float32
@@ -311,8 +439,10 @@ class EmissionControlEnv(gym.Env):
 
         # Index 0: ICE_Torque_Nm
         # Index 6: NOx_tp_gps (Tailpipe)
+        # Index 10: T_Wall_SCR1_K
         ice_torque = ice_pred[0][0]
         nox_tp = ice_pred[0][6]
+        t_wall_scr1 = ice_pred[0][10]
 
         # 4. Prepare Inputs for PG Model
         # Inputs: "ICE_Speed_rpm", "ICE: ICE_Torque_Nm", "EM2_Torque_Nm", "Brake_perc"
@@ -332,12 +462,15 @@ class EmissionControlEnv(gym.Env):
         car_speed = pg_pred[0][0]
         soc = pg_pred[0][1]
 
+        # Strictly clip SOC mathematically to keep LSTM in known valid domain
+        soc = np.clip(soc, 0.0001, 0.9999)
+
         # 6. Calculate Reward
 
-        # Check for catastrophic boundary breach
-        soc_boundary_breach = soc <= _SOC_LOWER_BOUND or soc >= _SOC_UPPER_BOUND
-
-        target_speed = self.df.loc[self.current_step, self.target_col_name()]
+        if self.random_target:
+            target_speed = self._get_current_target_speed()
+        else:
+            target_speed = self.df.loc[self.current_step, self.target_col_name()]
 
         speed_error = abs(target_speed - car_speed)
         soc_error = abs(soc - self.initial_soc)
@@ -356,7 +489,14 @@ class EmissionControlEnv(gym.Env):
         reward = 0.0
 
         ## DO NOT EDIT REWARDS HERE; INSTEAD IN config.py!!!!
-        reward -= self.config.W_SPEED * safe_speed_penalty
+
+        # Scale factor dictates how wide the "bell" is.
+        # A scale of 10.0 means at 10 km/h error, the reward drops significantly.
+        scale_factor = 10.0
+
+        reward += self.config.W_SPEED * np.exp(
+            -0.5 * (speed_error / scale_factor) ** 2
+        )  # gaussian reward
         reward -= self.config.W_EMISSION * safe_emission_penalty
         reward -= self.config.W_FUEL * (fuel_mg / norm_fuel)
         reward -= self.config.W_BRAKE * (brake_perc / norm_brake)
@@ -366,9 +506,6 @@ class EmissionControlEnv(gym.Env):
         if engine_on and not self.last_engine_on:
             reward -= self.config.W_FLICKER
 
-        if soc_boundary_breach:
-            reward -= 100.0
-
         # 7. Update State
         self.current_step += 1
         self.last_ice_torque = ice_torque
@@ -376,43 +513,65 @@ class EmissionControlEnv(gym.Env):
         self.last_soc = soc
         self.last_nox = nox_tp
         self.last_engine_on = engine_on
+        self.last_ice_speed = ice_speed_rpm
+        self.last_fuel = fuel_mg
+        self.last_em2_torque = em2_torque_nm
+        self.last_brake_perc = brake_perc
+        self.last_t_wall_scr1 = t_wall_scr1
 
         terminated = False
         truncated = False
 
-        if self.current_step >= self.max_steps - 1 or soc_boundary_breach:
+        if self.current_step >= self.max_steps - 1:
             terminated = True
 
-        next_target_speed = (
-            self.df.loc[self.current_step, self.target_col_name()]
-            if not terminated
-            else 0.0
-        )
+        if self.random_target:
+            next_target_speed = (
+                self._get_current_target_speed() if not terminated else 0.0
+            )
+        else:
+            next_target_speed = (
+                self.df.loc[self.current_step, self.target_col_name()]
+                if not terminated
+                else 0.0
+            )
 
         next_speed_error = next_target_speed - car_speed
 
         soc_error = soc - self.initial_soc
 
-        obs = np.array(
-            [
-                car_speed,
-                next_speed_error,
-                soc,
-                ice_torque,
-                nox_tp,
-                float(engine_on),
-                soc_error,
-            ],
-            dtype=np.float32,
+        obs = self._normalize_obs(
+            np.array(
+                [
+                    car_speed,
+                    next_speed_error,
+                    soc,
+                    ice_torque,
+                    nox_tp,
+                    ice_speed_rpm,
+                    fuel_mg,
+                    soc_error,
+                    min(float(self.steps_since_last_engine_switch) / 6.0, 1.0),
+                    em2_torque_nm,
+                    brake_perc,
+                    t_wall_scr1,
+                ],
+                dtype=np.float32,
+            )
         )
 
         info = {
-            "time_s": self.df.loc[self.current_step, "time_s"],
+            "time_s": (
+                self.current_step
+                if self.random_target
+                else self.df.loc[self.current_step, "time_s"]
+            ),
             "target_speed": target_speed,
             "speed_error": speed_error,
             "nox": nox_tp,
             "fuel": fuel_mg,
             "engine_on": engine_on,
+            "steps_since_last_engine_switch": self.steps_since_last_engine_switch,
             "ice_torque": ice_torque,
             "ice_speed_rpm": ice_speed_rpm,
             "em2_torque_nm": em2_torque_nm,
@@ -420,6 +579,22 @@ class EmissionControlEnv(gym.Env):
         }
 
         return obs, reward, terminated, truncated, info
+
+    def _normalize_obs(self, obs: np.ndarray) -> np.ndarray:
+        """Normalize observation from physical range to [0, 1]."""
+        return np.clip(
+            (obs - self._obs_physical_low)
+            / (self._obs_physical_high - self._obs_physical_low),
+            0.0,
+            1.0,
+        ).astype(np.float32)
+
+    def _denormalize_obs(self, obs_norm: np.ndarray) -> np.ndarray:
+        """Convert [0, 1]-normalized observation back to physical scale."""
+        return (
+            obs_norm * (self._obs_physical_high - self._obs_physical_low)
+            + self._obs_physical_low
+        ).astype(np.float32)
 
     def target_col_name(self):
         # Helper to find the speed column

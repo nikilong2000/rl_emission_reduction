@@ -1,2 +1,0 @@
-Kilometer, NOx (mg/km), NOx_Pass (<=80 mg/km)
-Partial (0.62 km), -44.42, True

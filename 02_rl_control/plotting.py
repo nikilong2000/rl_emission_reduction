@@ -22,21 +22,21 @@ class TrainingLivePlotCallback(BaseCallback):
             # Retrieve mean reward from the monitor file or accumulated rewards
             # SB3 Monitor wrapper writes to a csv file. We can read that or just track episode rewards if we want.
             # But SB3 callbacks don't easily give "current episode reward".
-            # Easiest is to read the monitor.csv if it exists.
+            # Easiest is to read the monitor files if they exist.
             try:
-                monitor_path = os.path.join(self.log_dir, "monitor.csv")
-                if os.path.exists(monitor_path):
-                    # Skip first 2 lines (metadata)
-                    df = pd.read_csv(monitor_path, skiprows=1)
-                    if len(df) > 0:
-                        # Use a moving average for smoother plotting
-                        rewards = df["r"].values
-                        if len(rewards) > 0:
-                            mean_reward = np.mean(rewards[-100:])  # Last 100 episodes
-                            self.rewards.append(mean_reward)
-                            self.timesteps.append(self.num_timesteps)
+                from stable_baselines3.common.results_plotter import load_results, ts2xy
 
-                            self._plot()
+                df = load_results(self.log_dir)
+                if len(df) > 0:
+                    # ts2xy extracts the timeseries (timesteps and rewards) from the monitor dataframes
+                    x, y = ts2xy(df, "timesteps")
+                    if len(y) > 0:
+                        # Use a moving average for smoother plotting
+                        mean_reward = np.mean(y[-100:])  # Last 100 episodes
+                        self.rewards.append(mean_reward)
+                        self.timesteps.append(self.num_timesteps)
+
+                        self._plot()
             except Exception as e:
                 pass  # Ignore errors during plotting
 
@@ -54,16 +54,11 @@ class TrainingLivePlotCallback(BaseCallback):
         plt.close()
 
 
-def plot_evaluation(results, log_dir):
+def plot_evaluation(results, log_dir, config):
     """
     Plot evaluation results: Speed, SOC, Emissions (NOx, CO).
     """
     time_steps = np.arange(len(results["speed_actual"]))
-
-    try:
-        from . import config
-    except ImportError:
-        import config
 
     has_thermals = "T_gas_eo_K" in results
 
@@ -89,14 +84,14 @@ def plot_evaluation(results, log_dir):
     )
     axes[0].set_ylabel("Speed (km/h)")
     axes[0].set_title("Speed Tracking")
-    axes[0].set_ylim(-10, 140)
+    axes[0].set_ylim(-10, 160)
     axes[0].legend()
     axes[0].grid(True)
 
     # 2. SOC
     axes[1].plot(time_steps, results["soc"], label="SOC", color="green")
     axes[1].set_ylabel("SOC")
-    axes[1].set_ylim(0, 1)
+    axes[1].set_ylim(-0.1, 1.1)
     axes[1].set_title("State of Charge (1 = full, 0 = empty)")
     axes[1].axhline(y=0.2, color="r", linestyle=":", alpha=0.5)
     axes[1].axhline(y=0.9, color="r", linestyle=":", alpha=0.5)
@@ -109,7 +104,7 @@ def plot_evaluation(results, log_dir):
     if not has_thermals:
         axes[2].set_xlabel("Time Step (0.5s)")
     axes[2].set_title("NOx Emissions per Step (mg)")
-    axes[2].set_ylim(-1, 30)
+    axes[2].set_ylim(-1, 80)
     axes[2].legend()
     axes[2].grid(True)
 
@@ -336,7 +331,9 @@ def plot_state_visitation_1d(
         results_list = [results_list]
     if isinstance(labels, str):
         labels = [labels]
-    labels = list(labels) if labels else [f"Agent {i + 1}" for i in range(len(results_list))]
+    labels = (
+        list(labels) if labels else [f"Agent {i + 1}" for i in range(len(results_list))]
+    )
 
     # Derive speed_error (raw obs dim 1 = target − actual)
     augmented = []
@@ -348,18 +345,18 @@ def plot_state_visitation_1d(
         augmented.append(er)
 
     state_configs = [
-        ("speed_actual", "Speed (km/h)",       (0,    150)),
-        ("speed_error",  "Speed Error (km/h)", (-80,   80)),
-        ("soc",          "SOC",                (0,      1)),
-        ("ice_torque",   "ICE Torque (Nm)",    (-50,  300)),
-        ("nox",          "NOx (g/s)",          (0,     10)),
-        ("engine_on",    "Engine On (0/1)",    (-0.1,  1.1)),
+        ("speed_actual", "Speed (km/h)", (0, 150)),
+        ("speed_error", "Speed Error (km/h)", (-80, 80)),
+        ("soc", "SOC", (0, 1)),
+        ("ice_torque", "ICE Torque (Nm)", (-50, 300)),
+        ("nox", "NOx (g/s)", (0, 10)),
+        ("engine_on", "Engine On (0/1)", (-0.1, 1.1)),
     ]
     if "T_gas_eo_K" in results_list[0]:
         state_configs += [
-            ("T_gas_eo_K",  "T Eng-Out (K)",       (290, 800)),
+            ("T_gas_eo_K", "T Eng-Out (K)", (290, 800)),
             ("T_Sub_DPF_K", "T DPF Substrate (K)", (290, 650)),
-            ("T_gas_tp_K",  "T Tailpipe (K)",      (290, 600)),
+            ("T_gas_tp_K", "T Tailpipe (K)", (290, 600)),
         ]
 
     ncols = 3
@@ -375,8 +372,12 @@ def plot_state_visitation_1d(
             if key in r:
                 data = np.array(r[key], dtype=float)
                 ax.hist(
-                    data, bins=bins, density=True, alpha=0.6,
-                    color=colors[i], label=lbl,
+                    data,
+                    bins=bins,
+                    density=True,
+                    alpha=0.6,
+                    color=colors[i],
+                    label=lbl,
                     range=(xlim[0], xlim[1]),
                 )
         ax.set_xlabel(xlabel, fontsize=9)
@@ -416,27 +417,27 @@ def plot_state_visitation_2d(results, log_dir: str, bins: int = 40) -> None:
         log_dir: directory where the figure is saved.
         bins:    bins per axis for the 2D histogram.
     """
-    speed      = np.array(results["speed_actual"])
-    speed_err  = np.array(results["speed_target"]) - speed
-    soc        = np.array(results["soc"])
+    speed = np.array(results["speed_actual"])
+    speed_err = np.array(results["speed_target"]) - speed
+    soc = np.array(results["soc"])
     ice_torque = np.array(results["ice_torque"])
-    nox        = np.array(results["nox"])
+    nox = np.array(results["nox"])
 
     pairs = [
-        (speed,      soc,       "Speed (km/h)",       "SOC",             (0, 150),   (0, 1)),
-        (speed,      nox,       "Speed (km/h)",       "NOx (g/s)",       (0, 150),   (0, 10)),
-        (speed_err,  soc,       "Speed Error (km/h)", "SOC",             (-80, 80),  (0, 1)),
-        (ice_torque, nox,       "ICE Torque (Nm)",    "NOx (g/s)",       (-50, 300), (0, 10)),
-        (soc,        ice_torque,"SOC",                "ICE Torque (Nm)", (0, 1),     (-50, 300)),
-        (speed_err,  nox,       "Speed Error (km/h)", "NOx (g/s)",       (-80, 80),  (0, 10)),
+        (speed, soc, "Speed (km/h)", "SOC", (0, 150), (0, 1)),
+        (speed, nox, "Speed (km/h)", "NOx (g/s)", (0, 150), (0, 10)),
+        (speed_err, soc, "Speed Error (km/h)", "SOC", (-80, 80), (0, 1)),
+        (ice_torque, nox, "ICE Torque (Nm)", "NOx (g/s)", (-50, 300), (0, 10)),
+        (soc, ice_torque, "SOC", "ICE Torque (Nm)", (0, 1), (-50, 300)),
+        (speed_err, nox, "Speed Error (km/h)", "NOx (g/s)", (-80, 80), (0, 10)),
     ]
     if "T_gas_eo_K" in results:
-        T_eo  = np.array(results["T_gas_eo_K"])
+        T_eo = np.array(results["T_gas_eo_K"])
         T_dpf = np.array(results["T_Sub_DPF_K"])
         pairs += [
-            (speed, T_eo,  "Speed (km/h)",  "T Eng-Out (K)",  (0, 150),   (290, 800)),
-            (T_eo,  nox,   "T Eng-Out (K)", "NOx (g/s)",      (290, 800), (0, 10)),
-            (soc,   T_dpf, "SOC",           "T DPF Sub (K)",  (0, 1),     (290, 650)),
+            (speed, T_eo, "Speed (km/h)", "T Eng-Out (K)", (0, 150), (290, 800)),
+            (T_eo, nox, "T Eng-Out (K)", "NOx (g/s)", (290, 800), (0, 10)),
+            (soc, T_dpf, "SOC", "T DPF Sub (K)", (0, 1), (290, 650)),
         ]
 
     ncols = 3
@@ -449,9 +450,12 @@ def plot_state_visitation_2d(results, log_dir: str, bins: int = 40) -> None:
         h, xe, ye = np.histogram2d(x, y, bins=bins, range=[xr, yr])
         h_norm = h / (h.sum() + 1e-12)
         im = ax.imshow(
-            h_norm.T, origin="lower", aspect="auto",
+            h_norm.T,
+            origin="lower",
+            aspect="auto",
             extent=[xe[0], xe[-1], ye[0], ye[-1]],
-            cmap="hot_r", vmin=0,
+            cmap="hot_r",
+            vmin=0,
         )
         plt.colorbar(im, ax=ax, label="Visit Fraction")
         ax.set_xlabel(xl, fontsize=9)
@@ -494,14 +498,16 @@ def plot_action_distribution(
         results_list = [results_list]
     if isinstance(labels, str):
         labels = [labels]
-    labels = list(labels) if labels else [f"Agent {i + 1}" for i in range(len(results_list))]
+    labels = (
+        list(labels) if labels else [f"Agent {i + 1}" for i in range(len(results_list))]
+    )
 
     action_configs = [
-        ("engine_on",     "Engine On (0/1)",  (-0.1,  1.1)),
-        ("ice_speed_rpm", "ICE Speed (RPM)",  (0,    4500)),
-        ("em2_torque_nm", "EM2 Torque (Nm)",  (-450,  450)),
-        ("fuel",          "Fuel (mg)",         (0,      80)),
-        ("brake_perc",    "Brake (%)",         (0,     105)),
+        ("engine_on", "Engine On (0/1)", (-0.1, 1.1)),
+        ("ice_speed_rpm", "ICE Speed (RPM)", (0, 4500)),
+        ("em2_torque_nm", "EM2 Torque (Nm)", (-450, 450)),
+        ("fuel", "Fuel (mg)", (0, 80)),
+        ("brake_perc", "Brake (%)", (0, 105)),
     ]
 
     ncols = 3
@@ -517,8 +523,12 @@ def plot_action_distribution(
             data = np.array(r.get(key, []), dtype=float)
             if len(data) > 0:
                 ax.hist(
-                    data, bins=bins, density=True, alpha=0.6,
-                    color=colors[i], label=lbl,
+                    data,
+                    bins=bins,
+                    density=True,
+                    alpha=0.6,
+                    color=colors[i],
+                    label=lbl,
                     range=(xlim[0], xlim[1]),
                 )
         ax.set_xlabel(xlabel, fontsize=9)
@@ -557,23 +567,30 @@ def plot_state_action_occupancy(results, log_dir: str, bins: int = 40) -> None:
         log_dir: directory where the figure is saved.
         bins:    bins per axis for the 2D histogram.
     """
-    speed      = np.array(results["speed_actual"])
-    speed_err  = np.array(results["speed_target"]) - speed
-    soc        = np.array(results["soc"])
-    nox        = np.array(results["nox"])
+    speed = np.array(results["speed_actual"])
+    speed_err = np.array(results["speed_target"]) - speed
+    soc = np.array(results["soc"])
+    nox = np.array(results["nox"])
     ice_torque = np.array(results["ice_torque"])
-    ice_speed  = np.array(results["ice_speed_rpm"])
+    ice_speed = np.array(results["ice_speed_rpm"])
     em2_torque = np.array(results["em2_torque_nm"])
-    fuel       = np.array(results["fuel"])
-    brake      = np.array(results["brake_perc"])
+    fuel = np.array(results["fuel"])
+    brake = np.array(results["brake_perc"])
 
     pairs = [
-        (soc,        em2_torque,  "SOC",                "EM2 Torque (Nm)",  (0, 1),     (-450, 450)),
-        (speed,      ice_speed,   "Speed (km/h)",       "ICE Speed (RPM)",  (0, 150),   (0, 4500)),
-        (speed_err,  fuel,        "Speed Error (km/h)", "Fuel (mg)",        (-80, 80),  (0, 80)),
-        (nox,        fuel,        "NOx (g/s)",          "Fuel (mg)",        (0, 10),    (0, 80)),
-        (ice_torque, em2_torque,  "ICE Torque (Nm)",    "EM2 Torque (Nm)",  (-50, 300), (-450, 450)),
-        (speed,      brake,       "Speed (km/h)",       "Brake (%)",        (0, 150),   (0, 105)),
+        (soc, em2_torque, "SOC", "EM2 Torque (Nm)", (0, 1), (-450, 450)),
+        (speed, ice_speed, "Speed (km/h)", "ICE Speed (RPM)", (0, 150), (0, 4500)),
+        (speed_err, fuel, "Speed Error (km/h)", "Fuel (mg)", (-80, 80), (0, 80)),
+        (nox, fuel, "NOx (g/s)", "Fuel (mg)", (0, 10), (0, 80)),
+        (
+            ice_torque,
+            em2_torque,
+            "ICE Torque (Nm)",
+            "EM2 Torque (Nm)",
+            (-50, 300),
+            (-450, 450),
+        ),
+        (speed, brake, "Speed (km/h)", "Brake (%)", (0, 150), (0, 105)),
     ]
 
     ncols = 3
@@ -586,9 +603,12 @@ def plot_state_action_occupancy(results, log_dir: str, bins: int = 40) -> None:
         h, xe, ye = np.histogram2d(x, y, bins=bins, range=[xr, yr])
         h_norm = h / (h.sum() + 1e-12)
         im = ax.imshow(
-            h_norm.T, origin="lower", aspect="auto",
+            h_norm.T,
+            origin="lower",
+            aspect="auto",
             extent=[xe[0], xe[-1], ye[0], ye[-1]],
-            cmap="viridis", vmin=0,
+            cmap="viridis",
+            vmin=0,
         )
         plt.colorbar(im, ax=ax, label="Visit Fraction")
         ax.set_xlabel(xl, fontsize=9)
@@ -629,30 +649,30 @@ def plot_temporal_state_heatmap(
         n_time_bins:  bins for the normalised time axis [0, 1].
         n_val_bins:   bins for the state-value axis.
     """
-    speed      = np.array(results["speed_actual"])
-    speed_err  = np.array(results["speed_target"]) - speed
-    soc        = np.array(results["soc"])
+    speed = np.array(results["speed_actual"])
+    speed_err = np.array(results["speed_target"]) - speed
+    soc = np.array(results["soc"])
     ice_torque = np.array(results["ice_torque"])
-    nox        = np.array(results["nox"])
+    nox = np.array(results["nox"])
 
     T = len(speed)
     t_norm = np.linspace(0, 1, T)
 
     state_configs = [
-        (speed,      "Speed (km/h)",       (0,   150)),
-        (speed_err,  "Speed Error (km/h)", (-80,  80)),
-        (soc,        "SOC",                (0,     1)),
-        (ice_torque, "ICE Torque (Nm)",    (-50,  300)),
-        (nox,        "NOx (g/s)",          (0,    10)),
+        (speed, "Speed (km/h)", (0, 150)),
+        (speed_err, "Speed Error (km/h)", (-80, 80)),
+        (soc, "SOC", (0, 1)),
+        (ice_torque, "ICE Torque (Nm)", (-50, 300)),
+        (nox, "NOx (g/s)", (0, 10)),
     ]
     if "T_gas_eo_K" in results:
-        T_eo  = np.array(results["T_gas_eo_K"])
+        T_eo = np.array(results["T_gas_eo_K"])
         T_dpf = np.array(results["T_Sub_DPF_K"])
-        T_tp  = np.array(results["T_gas_tp_K"])
+        T_tp = np.array(results["T_gas_tp_K"])
         state_configs += [
-            (T_eo,  "T Eng-Out (K)",       (290, 800)),
+            (T_eo, "T Eng-Out (K)", (290, 800)),
             (T_dpf, "T DPF Substrate (K)", (290, 650)),
-            (T_tp,  "T Tailpipe (K)",      (290, 600)),
+            (T_tp, "T Tailpipe (K)", (290, 600)),
         ]
 
     ncols = 2
@@ -663,7 +683,8 @@ def plot_temporal_state_heatmap(
     for ax_idx, (data, ylabel, val_range) in enumerate(state_configs):
         ax = axes[ax_idx]
         h, xe, ye = np.histogram2d(
-            t_norm, data,
+            t_norm,
+            data,
             bins=[n_time_bins, n_val_bins],
             range=[[0, 1], val_range],
         )
@@ -671,9 +692,13 @@ def plot_temporal_state_heatmap(
         col_sums = h.sum(axis=1, keepdims=True)
         h_cond = np.where(col_sums > 0, h / (col_sums + 1e-12), 0.0)
         im = ax.imshow(
-            h_cond.T, origin="lower", aspect="auto",
+            h_cond.T,
+            origin="lower",
+            aspect="auto",
             extent=[0, 1, ye[0], ye[-1]],
-            cmap="YlOrRd", vmin=0, vmax=h_cond.max() or 1.0,
+            cmap="YlOrRd",
+            vmin=0,
+            vmax=h_cond.max() or 1.0,
         )
         plt.colorbar(im, ax=ax, label="Cond. Density")
         ax.set_xlabel("Normalised Episode Time", fontsize=9)
@@ -716,18 +741,24 @@ def plot_exploration_entropy(
     if len(entropy_history) < 2:
         return
 
-    entropy   = np.array(entropy_history)
+    entropy = np.array(entropy_history)
     timesteps = np.array(timestep_history)
 
-    window   = max(1, len(entropy) // 20)
+    window = max(1, len(entropy) // 20)
     smoothed = np.convolve(entropy, np.ones(window) / window, mode="valid")
-    t_smooth = timesteps[window - 1:]
+    t_smooth = timesteps[window - 1 :]
 
     fig, ax = plt.subplots(figsize=(10, 4))
-    ax.plot(timesteps, entropy, alpha=0.25, color="steelblue",
-            label="Per-episode entropy")
-    ax.plot(t_smooth, smoothed, color="steelblue", linewidth=2,
-            label=f"Moving avg (window={window})")
+    ax.plot(
+        timesteps, entropy, alpha=0.25, color="steelblue", label="Per-episode entropy"
+    )
+    ax.plot(
+        t_smooth,
+        smoothed,
+        color="steelblue",
+        linewidth=2,
+        label=f"Moving avg (window={window})",
+    )
     ax.set_xlabel("Training Timesteps")
     ax.set_ylabel("Mean State Entropy (nats)")
     ax.set_title(

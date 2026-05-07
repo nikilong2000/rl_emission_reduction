@@ -1,0 +1,17 @@
+{
+    "learning_rate": 2.2602671383425324e-05,
+    "batch_size": 512,
+    "tau": 0.011048799944114396,
+    "gamma": 0.9556562280735906,
+    "train_freq": 1,
+    "gradient_steps": 8,
+    "learning_starts": 20000,
+    "policy_delay": 2,
+    "target_policy_noise": 0.28664870383147134,
+    "target_noise_clip": 0.4743224709392837,
+    "action_noise_sigma": 0.20944416442879982,
+    "net_arch": [
+        128,
+        128
+    ]
+}
