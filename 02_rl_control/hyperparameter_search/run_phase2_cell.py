@@ -46,7 +46,7 @@ warnings.filterwarnings(
 
 ALGO_CLASSES = {"ppo": PPO, "sac": SAC, "td3": TD3}
 ALGO_ON_POLICY = {"ppo": True, "sac": False, "td3": False}
-N_ENVS = 8
+N_ENVS = 40
 
 W_EMISSION_GRID = [0.25, 0.5, 1.0]
 W_SOC_SQUARED_GRID = [50.0, 150.0, 400.0]
