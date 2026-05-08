@@ -1,0 +1,33 @@
+{
+    "algorithm": "TD3",
+    "seed": 7,
+    "total_timesteps": 4000000,
+    "config_override_path": "/lustre/niklas.long/thesis/02_rl_control/logs/td3/optuna/best_params.json",
+    "overrides": {
+        "learning_rate": 0.00017868075356732802,
+        "batch_size": 1024,
+        "tau": 0.008234557346920543,
+        "gamma": 0.9646696226597696,
+        "train_freq": 1,
+        "gradient_steps": 8,
+        "learning_starts": 20000,
+        "policy_delay": 1,
+        "target_policy_noise": 0.11573782598311319,
+        "target_noise_clip": 0.6993591093240724,
+        "action_noise_sigma": 0.14405098164215782,
+        "net_arch": [
+            128,
+            128
+        ]
+    },
+    "training_duration_seconds": 45242.367,
+    "training_duration_hms": "12:34:02",
+    "n_envs": 20,
+    "w_speed": 1.0,
+    "w_emission": 0.0,
+    "w_fuel": 0.0,
+    "w_brake": 0.25,
+    "w_soc": 0.0,
+    "w_soc_squared": 0.0,
+    "w_flicker": 0.25
+}

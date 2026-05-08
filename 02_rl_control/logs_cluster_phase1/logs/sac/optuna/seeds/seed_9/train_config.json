@@ -1,0 +1,32 @@
+{
+    "algorithm": "SAC",
+    "seed": 9,
+    "total_timesteps": 4000000,
+    "config_override_path": "/lustre/niklas.long/thesis/02_rl_control/logs/sac/optuna/best_params.json",
+    "overrides": {
+        "learning_rate": 0.000920475365847247,
+        "batch_size": 512,
+        "tau": 0.007992889073407082,
+        "gamma": 0.9600892743867138,
+        "train_freq": 1,
+        "gradient_steps": 8,
+        "learning_starts": 1000,
+        "ent_coef": "auto",
+        "use_sde": false,
+        "net_arch": [
+            128,
+            128,
+            128
+        ]
+    },
+    "training_duration_seconds": 51521.522,
+    "training_duration_hms": "14:18:41",
+    "n_envs": 20,
+    "w_speed": 1.0,
+    "w_emission": 0.0,
+    "w_fuel": 0.0,
+    "w_brake": 0.25,
+    "w_soc": 0.0,
+    "w_soc_squared": 0.0,
+    "w_flicker": 0.25
+}

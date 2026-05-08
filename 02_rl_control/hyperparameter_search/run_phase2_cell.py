@@ -46,7 +46,7 @@ warnings.filterwarnings(
 
 ALGO_CLASSES = {"ppo": PPO, "sac": SAC, "td3": TD3}
 ALGO_ON_POLICY = {"ppo": True, "sac": False, "td3": False}
-N_ENVS = 20
+N_ENVS = 8
 
 W_EMISSION_GRID = [0.25, 0.5, 1.0]
 W_SOC_SQUARED_GRID = [50.0, 150.0, 400.0]
@@ -56,8 +56,7 @@ def cell_id_to_weights(cell_id: int):
     n = len(W_SOC_SQUARED_GRID)
     if cell_id < 0 or cell_id >= len(W_EMISSION_GRID) * n:
         raise ValueError(
-            f"cell_id {cell_id} out of range "
-            f"[0, {len(W_EMISSION_GRID) * n - 1}]"
+            f"cell_id {cell_id} out of range " f"[0, {len(W_EMISSION_GRID) * n - 1}]"
         )
     i_e, i_s = divmod(cell_id, n)
     return W_EMISSION_GRID[i_e], W_SOC_SQUARED_GRID[i_s]
@@ -141,7 +140,9 @@ def main(args):
 
     # Resolve grid cell -> reward weights
     w_emission, w_soc_squared = cell_id_to_weights(args.cell_id)
-    print(f"Cell {args.cell_id}: W_EMISSION={w_emission}, W_SOC_SQUARED={w_soc_squared}")
+    print(
+        f"Cell {args.cell_id}: W_EMISSION={w_emission}, W_SOC_SQUARED={w_soc_squared}"
+    )
 
     # Load base config + apply phase-1 best HPO params (same alg hyperparams)
     config = load_config(current_dir=models_dir, algo_key=algo_key)
@@ -160,7 +161,7 @@ def main(args):
     # Resolve phase-1 best-seed checkpoint
     seeds_dir = args.seeds_dir or os.path.join(
         rl_control_dir,
-        "logs_cluster_01",
+        "logs_cluster",
         "logs",
         algo_key,
         "optuna",
@@ -175,9 +176,7 @@ def main(args):
     output_root = args.output_dir or os.path.join(
         rl_control_dir, "logs", algo_key, "phase2"
     )
-    cell_name = (
-        f"cell_{args.cell_id:02d}_we{w_emission:g}_wsq{w_soc_squared:g}"
-    )
+    cell_name = f"cell_{args.cell_id:02d}_we{w_emission:g}_wsq{w_soc_squared:g}"
     cell_dir = os.path.join(output_root, cell_name)
     os.makedirs(cell_dir, exist_ok=True)
     print(f"Output dir: {cell_dir}")
@@ -301,12 +300,12 @@ if __name__ == "__main__":
     parser.add_argument(
         "--hpo_config",
         default=None,
-        help="Path to phase-1 best_params.json. Default: logs_cluster_01/logs/<algo>/optuna/best_params.json.",
+        help="Path to phase-1 best_params.json. Default: logs_cluster/logs/<algo>/optuna/best_params.json.",
     )
     parser.add_argument(
         "--seeds_dir",
         default=None,
-        help="Phase-1 seeds dir. Default: logs_cluster_01/logs/<algo>/optuna/seeds.",
+        help="Phase-1 seeds dir. Default: logs_cluster/logs/<algo>/optuna/seeds.",
     )
     parser.add_argument(
         "--output_dir",
@@ -321,7 +320,7 @@ if __name__ == "__main__":
     if args.hpo_config is None:
         args.hpo_config = os.path.join(
             rl_control_dir,
-            "logs_cluster_01",
+            "logs_cluster",
             "logs",
             args.algorithm,
             "optuna",

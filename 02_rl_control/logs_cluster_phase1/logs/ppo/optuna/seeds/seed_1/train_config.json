@@ -1,0 +1,29 @@
+{
+    "algorithm": "PPO",
+    "seed": 1,
+    "total_timesteps": 4000000,
+    "config_override_path": "/lustre/niklas.long/thesis/02_rl_control/logs/ppo/optuna/best_params.json",
+    "overrides": {
+        "learning_rate": 1.2848222240228027e-05,
+        "n_steps": 2048,
+        "batch_size": 64,
+        "n_epochs": 11,
+        "gamma": 0.9646668860424054,
+        "gae_lambda": 0.9651284084544905,
+        "clip_range": 0.20274478611360944,
+        "net_arch": [
+            256,
+            256
+        ]
+    },
+    "training_duration_seconds": 38331.331,
+    "training_duration_hms": "10:38:51",
+    "n_envs": 20,
+    "w_speed": 1.0,
+    "w_emission": 0.0,
+    "w_fuel": 0.0,
+    "w_brake": 0.25,
+    "w_soc": 0.0,
+    "w_soc_squared": 0.0,
+    "w_flicker": 0.25
+}

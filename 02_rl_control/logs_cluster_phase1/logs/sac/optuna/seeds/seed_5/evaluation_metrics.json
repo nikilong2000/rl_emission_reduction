@@ -1,0 +1,13 @@
+{
+    "model_path": "/lustre/niklas.long/thesis/02_rl_control/logs/sac/optuna/seeds/seed_5/sac_seed_5_final",
+    "train_config_path": "/lustre/niklas.long/thesis/02_rl_control/logs/sac/optuna/seeds/seed_5/train_config.json",
+    "total_reward": 3537.64208984375,
+    "total_fuel_g": 123.28837905359268,
+    "total_nox_g": 66.13715362548828,
+    "mae_speed_kmph": 1.207796717657252,
+    "rmse_speed_kmph": 3.111459728759252,
+    "initial_soc": 0.7003646492958069,
+    "final_soc": 0.9998999834060669,
+    "delta_soc": 0.29953533411026,
+    "custom_notes": ""
+}

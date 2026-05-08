@@ -97,6 +97,7 @@ class SimulatorCore:
         action_scaled = self._rescale_action(action_norm)
 
         obs, reward, terminated, truncated, info = self.env.step(action_norm)
+        obs_phys = self.env._denormalize_obs(obs)
 
         record = {
             "step": int(self.step_index),
@@ -106,10 +107,10 @@ class SimulatorCore:
             "truncated": bool(truncated),
             "target_speed": float(info.get("target_speed", np.nan)),
             "speed_error": float(info.get("speed_error", np.nan)),
-            "speed_actual": float(obs[0]),
-            "soc": float(obs[2]),
-            "ice_torque": float(obs[3]),
-            "nox": float(info.get("nox", obs[4])),
+            "speed_actual": float(obs_phys[0]),
+            "soc": float(obs_phys[2]),
+            "ice_torque": float(obs_phys[3]),
+            "nox": float(info.get("nox", obs_phys[4])),
             "fuel": float(info.get("fuel", np.nan)),
             "engine_on": bool(info.get("engine_on", False)),
             "ice_speed_rpm": float(info.get("ice_speed_rpm", np.nan)),
@@ -152,17 +153,19 @@ class SimulatorCore:
         if self.last_obs is None:
             return {}
 
+        phys = self.env._denormalize_obs(np.asarray(self.last_obs, dtype=np.float32))
+
         return {
-            "speed_actual": float(self.last_obs[0]),
-            "speed_error_obs": float(self.last_obs[1]),
-            "soc": float(self.last_obs[2]),
-            "ice_torque": float(self.last_obs[3]),
-            "nox_obs": float(self.last_obs[4]),
-            "ice_speed_obs": float(self.last_obs[5]),
-            "fuel_obs": float(self.last_obs[6]),
-            "soc_error": float(self.last_obs[7]),
+            "speed_actual": float(phys[0]),
+            "speed_error_obs": float(phys[1]),
+            "soc": float(phys[2]),
+            "ice_torque": float(phys[3]),
+            "nox_obs": float(phys[4]),
+            "ice_speed_obs": float(phys[5]),
+            "fuel_obs": float(phys[6]),
+            "soc_error": float(phys[7]),
             "switch_timer_norm_obs": (
-                float(self.last_obs[8]) if len(self.last_obs) > 8 else np.nan
+                float(phys[8]) if len(phys) > 8 else np.nan
             ),
             "reward": float(self.last_reward),
             "terminated": bool(self.last_terminated),

@@ -1,0 +1,16 @@
+{
+    "learning_rate": 0.000984145123496132,
+    "batch_size": 512,
+    "tau": 0.009314358120591304,
+    "gamma": 0.95937114851521,
+    "train_freq": 1,
+    "gradient_steps": 8,
+    "learning_starts": 1000,
+    "ent_coef": "auto",
+    "use_sde": false,
+    "net_arch": [
+        128,
+        128,
+        128
+    ]
+}
