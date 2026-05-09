@@ -821,3 +821,62 @@ if __name__ == "__main__":
     plot_state_action_occupancy(_results_list[0], _log_dir)
     plot_temporal_state_heatmap(_results_list[0], _log_dir)
     print("Done.  All exploration/exploitation plots generated.")
+
+
+def plot_drivetrain_plus(results, log_dir):
+    """
+    Plot Drivetrain_Plus IST quantities over the full evaluation episode:
+    EM1 torque (Nm), EM2 torque (Nm) with EM2 SOLL overlay, Sun speed (rpm),
+    Ring speed (rpm). Skipped silently if all values are NaN (e.g. ONNX backend
+    or Drivetrain_Plus disabled).
+    """
+    em1 = np.asarray(results.get("em1_torque_ist_nm", []), dtype=float)
+    em2_ist = np.asarray(results.get("em2_torque_ist_nm", []), dtype=float)
+    sun = np.asarray(results.get("sun_speed_rpm", []), dtype=float)
+    ring = np.asarray(results.get("ring_speed_rpm", []), dtype=float)
+
+    if em1.size == 0 or np.all(np.isnan(em1)):
+        return
+
+    em2_soll = np.asarray(results.get("em2_torque_nm", []), dtype=float)
+    time_steps = np.arange(em1.size)
+
+    fig, axes = plt.subplots(4, 1, figsize=(14, 14), sharex=True)
+
+    axes[0].plot(time_steps, em1, color="tab:blue", linewidth=0.8)
+    axes[0].set_ylabel("EM1 Torque IST (Nm)")
+    axes[0].set_title("Drivetrain_Plus: EM1 Torque (IST)")
+    axes[0].grid(True)
+
+    axes[1].plot(
+        time_steps,
+        em2_soll[: em1.size] if em2_soll.size >= em1.size else em2_soll,
+        color="tab:orange",
+        linewidth=0.6,
+        alpha=0.6,
+        label="EM2 SOLL (command)",
+    )
+    axes[1].plot(
+        time_steps, em2_ist, color="tab:blue", linewidth=0.9, alpha=0.6, label="EM2 IST"
+    )
+    axes[1].set_ylabel("EM2 Torque (Nm)")
+    axes[1].set_title("Drivetrain_Plus: EM2 Torque (SOLL vs IST)")
+    axes[1].grid(True)
+    axes[1].legend(loc="upper right")
+
+    axes[2].plot(time_steps, sun, color="tab:green", linewidth=0.8)
+    axes[2].set_ylabel("Sun Speed (rpm)")
+    axes[2].set_title("Drivetrain_Plus: Sun Speed")
+    axes[2].grid(True)
+
+    axes[3].plot(time_steps, ring, color="tab:red", linewidth=0.8)
+    axes[3].set_ylabel("Ring Speed (rpm)")
+    axes[3].set_xlabel("Step")
+    axes[3].set_title("Drivetrain_Plus: Ring Speed")
+    axes[3].grid(True)
+
+    fig.tight_layout()
+    out_path = os.path.join(log_dir, "drivetrain_plus.png")
+    plt.savefig(out_path, dpi=120)
+    plt.close(fig)
+    print(f"Drivetrain_Plus plot saved to {out_path}")

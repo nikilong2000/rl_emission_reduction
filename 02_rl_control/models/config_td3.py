@@ -6,8 +6,10 @@ PROJECT_ROOT = os.path.abspath(os.path.join(CURRENT_DIR, ".."))
 
 ICE_MODEL_DIR = os.path.join(PROJECT_ROOT, "plant_lstms/tf/ICE")
 PG_MODEL_DIR = os.path.join(PROJECT_ROOT, "plant_lstms/tf/Drivetrain")
+PG_PLUS_MODEL_DIR = os.path.join(PROJECT_ROOT, "plant_lstms/tf/Drivetrain_Plus")
 ICE_MODEL_DIR_ONNX = os.path.join(PROJECT_ROOT, "plant_lstms/onnx/ICE")
 PG_MODEL_DIR_ONNX = os.path.join(PROJECT_ROOT, "plant_lstms/onnx/Drivetrain")
+USE_PG_PLUS = True  # logging-only secondary drivetrain net (TF only)
 TRAIN_DATA_DIR = os.path.join(PROJECT_ROOT, "data_train")
 ## DIRECTORIES END
 ############################

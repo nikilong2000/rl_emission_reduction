@@ -21,6 +21,13 @@ python plot_training_curves.py logs_cluster_phase1/logs/ppo/optuna/seeds \
 
 # Smoothing window of 50 episodes
 python plot_training_curves.py logs_cluster_phase1/logs/ppo/optuna --smooth 50
+
+# Compare mean ± std across algorithms (each dir holds seed_* subdirs)
+python plot_training_curves.py --compare \
+    logs_cluster_phase1/logs/ppo/optuna/seeds \
+    logs_cluster_phase1/logs/sac/optuna/seeds \
+    logs_cluster_phase1/logs/td3/optuna/seeds \
+    --labels PPO SAC TD3 --smooth 30
 """
 
 from __future__ import annotations
@@ -34,7 +41,6 @@ from dataclasses import dataclass
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-
 
 # ----------------------------- discovery --------------------------------------
 
@@ -52,9 +58,7 @@ def _read_monitor(path: str) -> pd.DataFrame:
 
 
 def _load_run(path: str, name: str) -> Run | None:
-    csvs = sorted(
-        f for f in os.listdir(path) if f.endswith(".monitor.csv")
-    )
+    csvs = sorted(f for f in os.listdir(path) if f.endswith(".monitor.csv"))
     if not csvs:
         return None
 
@@ -133,6 +137,38 @@ def smooth(y: np.ndarray, window: int) -> np.ndarray:
     return s.rolling(window=window, min_periods=1, center=False).mean().to_numpy()
 
 
+# ----------------------------- aggregation ------------------------------------
+
+
+def aggregate_seeds(
+    runs: list[Run],
+    *,
+    xaxis: str = "timesteps",
+    smooth_window: int = 1,
+    n_grid: int = 400,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, int]:
+    """Mean ± std reward across seeds on a common x-grid.
+
+    Each run's smoothed curve is linearly interpolated onto a shared grid
+    spanning [0, min(max_x across seeds)]. Returns (x, mean, std, n_seeds).
+    """
+    if not runs:
+        raise ValueError("No runs to aggregate.")
+
+    xkey = "timesteps" if xaxis == "timesteps" else "episode"
+    x_max = min(r.df[xkey].iloc[-1] for r in runs)
+    x_min = max(r.df[xkey].iloc[0] for r in runs)
+    grid = np.linspace(x_min, x_max, n_grid)
+
+    interp = []
+    for r in runs:
+        x = r.df[xkey].to_numpy()
+        y = smooth(r.df["r"].to_numpy(), smooth_window)
+        interp.append(np.interp(grid, x, y))
+    stack = np.vstack(interp)
+    return grid, stack.mean(axis=0), stack.std(axis=0), len(runs)
+
+
 # ----------------------------- plotting ---------------------------------------
 
 
@@ -143,9 +179,11 @@ def _color_cycle(n: int):
         cmap = plt.get_cmap("tab20")
     else:
         cmap = plt.get_cmap("turbo")
-    return [cmap(i / max(n - 1, 1)) for i in range(n)] if n > 20 else [
-        cmap(i % cmap.N) for i in range(n)
-    ]
+    return (
+        [cmap(i / max(n - 1, 1)) for i in range(n)]
+        if n > 20
+        else [cmap(i % cmap.N) for i in range(n)]
+    )
 
 
 def plot(
@@ -190,7 +228,7 @@ def plot(
         if show_raw and smooth_window > 1:
             ax.plot(x, y, color=color, alpha=0.18, linewidth=0.8)
         ys = smooth(y, smooth_window)
-        ax.plot(x, ys, color=color, linewidth=1.6, label=run.name)
+        ax.plot(x, ys, color=color, linewidth=1.1, alpha=0.9, label=run.name)
 
     ax.set_xlabel(xlabel)
     ax.set_ylabel("Episode Reward")
@@ -216,6 +254,81 @@ def plot(
     plt.show()
 
 
+def plot_compare(
+    groups: list[tuple[str, list[Run]]],
+    *,
+    xaxis: str = "timesteps",
+    smooth_window: int = 1,
+    show_band: bool = True,
+    band: str = "std",  # "std" or "minmax"
+    title: str | None = None,
+    save_path: str | None = None,
+    figsize: tuple[float, float] = (12.0, 6.5),
+) -> None:
+    """Overlay mean (± band) reward curve for each algorithm group."""
+    if not groups:
+        print("No groups to compare.", file=sys.stderr)
+        return
+
+    plt.rcParams.update(
+        {
+            "figure.dpi": 110,
+            "savefig.dpi": 200,
+            "font.size": 11,
+            "axes.titlesize": 13,
+            "axes.labelsize": 12,
+            "legend.fontsize": 10,
+            "axes.grid": True,
+            "grid.alpha": 0.25,
+            "axes.spines.top": False,
+            "axes.spines.right": False,
+        }
+    )
+
+    fig, ax = plt.subplots(figsize=figsize)
+    colors = _color_cycle(len(groups))
+    xlabel = "Total Environment Steps" if xaxis == "timesteps" else "Episode"
+
+    for (label, runs), color in zip(groups, colors):
+        if not runs:
+            print(f"  ! {label}: no runs, skipping", file=sys.stderr)
+            continue
+        x, mean, std, n = aggregate_seeds(
+            runs, xaxis=xaxis, smooth_window=smooth_window
+        )
+        if band == "minmax":
+            xkey = "timesteps" if xaxis == "timesteps" else "episode"
+            stack = np.vstack(
+                [
+                    np.interp(
+                        x,
+                        r.df[xkey].to_numpy(),
+                        smooth(r.df["r"].to_numpy(), smooth_window),
+                    )
+                    for r in runs
+                ]
+            )
+            lo, hi = stack.min(axis=0), stack.max(axis=0)
+        else:
+            lo, hi = mean - std, mean + std
+
+        ax.plot(x, mean, color=color, linewidth=1.1, label=f"{label} (n={n})")
+        if show_band:
+            ax.fill_between(x, lo, hi, color=color, alpha=0.18, linewidth=0)
+
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel("Episode Reward")
+    ax.set_title(title or "Algorithm Comparison — Mean across Seeds")
+    ax.margins(x=0.01)
+    ax.legend(loc="best", frameon=False)
+
+    fig.tight_layout()
+    if save_path:
+        fig.savefig(save_path, bbox_inches="tight")
+        print(f"Saved: {save_path}")
+    plt.show()
+
+
 # ----------------------------- CLI --------------------------------------------
 
 
@@ -226,8 +339,30 @@ def main(argv: list[str] | None = None) -> int:
     )
     p.add_argument(
         "directory",
+        nargs="?",
+        default=None,
         help="Root dir holding run subdirs (each with *.monitor.csv files), "
-        "or a single run dir.",
+        "or a single run dir. Omit when using --compare.",
+    )
+    p.add_argument(
+        "--compare",
+        nargs="+",
+        default=None,
+        metavar="DIR",
+        help="Compare multiple algorithm groups: pass one parent dir per "
+        "algorithm (each holds seed_* / trial_* subdirs). Plots mean ± band.",
+    )
+    p.add_argument(
+        "--labels",
+        nargs="+",
+        default=None,
+        help="Display labels matching --compare dirs (default: dir basenames).",
+    )
+    p.add_argument(
+        "--band",
+        choices=["std", "minmax", "none"],
+        default="std",
+        help="Uncertainty band in --compare mode.",
     )
     p.add_argument(
         "--include",
@@ -279,6 +414,47 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = p.parse_args(argv)
 
+    if args.compare:
+        labels = args.labels or [
+            os.path.basename(os.path.normpath(d)) for d in args.compare
+        ]
+        if len(labels) != len(args.compare):
+            print("--labels count must match --compare dir count.", file=sys.stderr)
+            return 2
+
+        groups: list[tuple[str, list[Run]]] = []
+        for label, d in zip(labels, args.compare):
+            runs = filter_runs(discover_runs(d), args.include, args.exclude)
+            print(f"{label}  ({d}): {len(runs)} seed run(s)")
+            for r in runs:
+                print(
+                    f"  - {r.name}  ({len(r.df)} episodes, "
+                    f"{int(r.df['timesteps'].iloc[-1])} steps)"
+                )
+            groups.append((label, runs))
+
+        if args.list:
+            return 0
+        if not any(rs for _, rs in groups):
+            print("No runs found in any compare dir.", file=sys.stderr)
+            return 1
+
+        plot_compare(
+            groups,
+            xaxis=args.xaxis,
+            smooth_window=args.smooth,
+            show_band=(args.band != "none"),
+            band=args.band if args.band != "none" else "std",
+            title=args.title,
+            save_path=args.save,
+            figsize=tuple(args.figsize),
+        )
+        return 0
+
+    if not args.directory:
+        print("Provide a directory or use --compare.", file=sys.stderr)
+        return 2
+
     runs = discover_runs(args.directory)
     runs = filter_runs(runs, args.include, args.exclude)
 
@@ -288,8 +464,10 @@ def main(argv: list[str] | None = None) -> int:
 
     print(f"Plotting {len(runs)} run(s) from {args.directory}:")
     for r in runs:
-        print(f"  - {r.name}  ({len(r.df)} episodes, "
-              f"{int(r.df['timesteps'].iloc[-1])} steps)")
+        print(
+            f"  - {r.name}  ({len(r.df)} episodes, "
+            f"{int(r.df['timesteps'].iloc[-1])} steps)"
+        )
 
     if args.list:
         return 0

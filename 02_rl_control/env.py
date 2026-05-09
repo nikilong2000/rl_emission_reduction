@@ -166,6 +166,39 @@ class EmissionControlEnv(gym.Env):
             self.pg_predict_init,
         ) = self.pg_tuple
 
+        # Optional secondary drivetrain net (Drivetrain_Plus) — logging only.
+        # Outputs IST quantities: EM1/EM2 torques, Sun/Ring speeds.
+        # No ONNX export exists, so always load via the TF backend regardless of
+        # self.use_onnx. Allows mixed backend (ICE/PG via ONNX, DT_Plus via TF).
+        self.use_pg_plus = bool(getattr(self.config, "USE_PG_PLUS", False))
+        if self.use_pg_plus:
+            print("Loading Drivetrain_Plus Model (TF, regardless of USE_ONNX)...")
+            pg_plus_dir = getattr(self.config, "PG_PLUS_MODEL_DIR", None)
+            if pg_plus_dir is None or not os.path.isdir(pg_plus_dir):
+                print(
+                    f"Warning: PG_PLUS_MODEL_DIR missing or not a dir: {pg_plus_dir}. "
+                    "Disabling Drivetrain_Plus."
+                )
+                self.use_pg_plus = False
+            else:
+                # Always use the TF loader, even if self.load_network is the ONNX one.
+                try:
+                    from .utils.network_utils import load_network as _tf_load_network
+                    from .utils.network_utils import set_states as _tf_set_states
+                except ImportError:
+                    from utils.network_utils import load_network as _tf_load_network
+                    from utils.network_utils import set_states as _tf_set_states
+                self._pg_plus_set_states = _tf_set_states
+                self.pg_plus_tuple = _tf_load_network(pg_plus_dir)
+                (
+                    self.pg_plus_main,
+                    self.pg_plus_init,
+                    self.pg_plus_in_scaler,
+                    self.pg_plus_out_scaler,
+                    self.pg_plus_predict_main,
+                    self.pg_plus_predict_init,
+                ) = self.pg_plus_tuple
+
         # define action space
         # normalise actions to [-1, 1] and rescale inside step
         self.action_space = spaces.Box(
@@ -310,6 +343,22 @@ class EmissionControlEnv(gym.Env):
         pg_states = self.pg_predict_init(pg_init_scaled)
         pg_states_dict = dict(zip(self.pg_init.output_names, pg_states))
         self.set_states(self.pg_main, pg_states_dict)
+
+        # Drivetrain_Plus: zero-init IST outputs and warm up LSTM state
+        if self.use_pg_plus:
+            pg_plus_init_vals = np.array([[0.0, 0.0, 0.0, 0.0]], dtype=np.float32)
+            pg_plus_init_scaled = self.pg_plus_out_scaler.transform(
+                pg_plus_init_vals
+            ).reshape(1, 1, -1)
+            pg_plus_states = self.pg_plus_predict_init(pg_plus_init_scaled)
+            pg_plus_states_dict = dict(
+                zip(self.pg_plus_init.output_names, pg_plus_states)
+            )
+            self._pg_plus_set_states(self.pg_plus_main, pg_plus_states_dict)
+            self.last_em1_torque_ist = 0.0
+            self.last_em2_torque_ist = 0.0
+            self.last_sun_speed_rpm = 0.0
+            self.last_ring_speed_rpm = 0.0
 
         # set initial state
         self.last_ice_torque = ice_init_val_row[0]  # ICE_Torque
@@ -465,6 +514,30 @@ class EmissionControlEnv(gym.Env):
         # Strictly clip SOC mathematically to keep LSTM in known valid domain
         soc = np.clip(soc, 0.0001, 0.9999)
 
+        # 5b. Predict Drivetrain_Plus IST quantities (logging only, TF backend)
+        # Outputs: EM1_Torque_ist_Nm, EM2_Torque_ist_Nm, Sun_Speed_rpm, Ring_Speed_rpm
+        # Uses its own input scaler — do NOT reuse pg_in_scaled (scaler params differ).
+        em1_torque_ist = float("nan")
+        em2_torque_ist = float("nan")
+        sun_speed_rpm = float("nan")
+        ring_speed_rpm = float("nan")
+        if self.use_pg_plus:
+            pg_plus_in_scaled = self.pg_plus_in_scaler.transform(pg_inputs).reshape(
+                1, 1, -1
+            )
+            pg_plus_pred_scaled = self.pg_plus_predict_main(pg_plus_in_scaled)
+            pg_plus_pred = self.pg_plus_out_scaler.inverse_transform(
+                pg_plus_pred_scaled.numpy()[0]
+            )
+            em1_torque_ist = float(pg_plus_pred[0][0])
+            em2_torque_ist = float(pg_plus_pred[0][1])
+            sun_speed_rpm = float(pg_plus_pred[0][2])
+            ring_speed_rpm = float(pg_plus_pred[0][3])
+            self.last_em1_torque_ist = em1_torque_ist
+            self.last_em2_torque_ist = em2_torque_ist
+            self.last_sun_speed_rpm = sun_speed_rpm
+            self.last_ring_speed_rpm = ring_speed_rpm
+
         # 6. Calculate Reward
 
         if self.random_target:
@@ -577,6 +650,11 @@ class EmissionControlEnv(gym.Env):
             "em2_torque_nm": em2_torque_nm,
             "brake_perc": brake_perc,
         }
+        if self.use_pg_plus:
+            info["em1_torque_ist_nm"] = em1_torque_ist
+            info["em2_torque_ist_nm"] = em2_torque_ist
+            info["sun_speed_rpm"] = sun_speed_rpm
+            info["ring_speed_rpm"] = ring_speed_rpm
 
         return obs, reward, terminated, truncated, info
 

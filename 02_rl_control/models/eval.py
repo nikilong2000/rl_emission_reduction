@@ -36,6 +36,7 @@ from plotting import (
     plot_action_distribution,
     plot_state_action_occupancy,
     plot_temporal_state_heatmap,
+    plot_drivetrain_plus,
 )
 from utils.evaluation_utils import calculate_emissions_per_km
 from utils.config_utils import load_config
@@ -177,6 +178,10 @@ def evaluate_model(
         "ice_speed_rpm": [],
         "em2_torque_nm": [],
         "brake_perc": [],
+        "em1_torque_ist_nm": [],
+        "em2_torque_ist_nm": [],
+        "sun_speed_rpm": [],
+        "ring_speed_rpm": [],
     }
 
     # Helper to convert [0,1]-normalised env obs back to physical units
@@ -220,6 +225,10 @@ def evaluate_model(
         eval_results["ice_speed_rpm"].append(i.get("ice_speed_rpm"))
         eval_results["em2_torque_nm"].append(i.get("em2_torque_nm"))
         eval_results["brake_perc"].append(i.get("brake_perc"))
+        eval_results["em1_torque_ist_nm"].append(i.get("em1_torque_ist_nm", np.nan))
+        eval_results["em2_torque_ist_nm"].append(i.get("em2_torque_ist_nm", np.nan))
+        eval_results["sun_speed_rpm"].append(i.get("sun_speed_rpm", np.nan))
+        eval_results["ring_speed_rpm"].append(i.get("ring_speed_rpm", np.nan))
 
     print(f"Evaluation finished. Total Reward: {total_reward}")
 
@@ -288,6 +297,7 @@ def evaluate_model(
     plot_action_distribution([eval_results], [algo_label], log_dir)
     plot_state_action_occupancy(eval_results, log_dir)
     plot_temporal_state_heatmap(eval_results, log_dir)
+    plot_drivetrain_plus(eval_results, log_dir)
 
 
 if __name__ == "__main__":
