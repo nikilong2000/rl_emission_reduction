@@ -1,0 +1,23 @@
+{
+    "algorithm": "SAC",
+    "phase": 2,
+    "cell_id": 2,
+    "continued_from": "/lustre/niklas.long/thesis/02_rl_control/logs_cluster/logs/sac/optuna/seeds/seed_3/sac_seed_3_final.zip",
+    "phase1_best_seed": 3,
+    "phase1_baseline": {
+        "rmse_speed_kmph": 3.106119002140467,
+        "total_nox_g": 48.93769073486328,
+        "delta_soc": 0.2987481951713562
+    },
+    "total_timesteps": 4000000,
+    "n_envs": 8,
+    "w_speed": 1.0,
+    "w_emission": 0.25,
+    "w_fuel": 0.0,
+    "w_brake": 0.25,
+    "w_soc": 0.0,
+    "w_soc_squared": 400.0,
+    "w_flicker": 0.25,
+    "training_duration_seconds": 103747.494,
+    "training_duration_hms": "1 day, 4:49:07"
+}

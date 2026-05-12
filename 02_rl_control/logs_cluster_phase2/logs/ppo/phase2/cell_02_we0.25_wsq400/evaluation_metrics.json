@@ -1,0 +1,15 @@
+{
+    "model_path": "/lustre/niklas.long/thesis/02_rl_control/logs/ppo/phase2/cell_02_we0.25_wsq400/ppo_phase2_cell02_final",
+    "train_config_path": "/lustre/niklas.long/thesis/02_rl_control/logs/ppo/phase2/cell_02_we0.25_wsq400/train_config.json",
+    "total_reward": 3537.0126953125,
+    "total_fuel_g": 50.74454955291748,
+    "total_nox_g": 5.545317649841309,
+    "mae_speed_kmph": 1.249262788554767,
+    "rmse_speed_kmph": 3.3750768628287116,
+    "initial_soc": 0.7001357078552246,
+    "final_soc": 0.6644274592399597,
+    "delta_soc": -0.03570824861526489,
+    "max_abs_soc_drift": 0.051518261432647705,
+    "rms_soc_drift": 0.028790537267923355,
+    "custom_notes": ""
+}

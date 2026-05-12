@@ -1,0 +1,23 @@
+{
+    "algorithm": "PPO",
+    "phase": 2,
+    "cell_id": 0,
+    "continued_from": "/lustre/niklas.long/thesis/02_rl_control/logs_cluster/logs/ppo/optuna/seeds/seed_3/ppo_seed_3_final.zip",
+    "phase1_best_seed": 3,
+    "phase1_baseline": {
+        "rmse_speed_kmph": 3.1630917109278047,
+        "total_nox_g": 5.572200775146484,
+        "delta_soc": 0.29916447401046753
+    },
+    "total_timesteps": 4000000,
+    "n_envs": 8,
+    "w_speed": 1.0,
+    "w_emission": 0.25,
+    "w_fuel": 0.0,
+    "w_brake": 0.25,
+    "w_soc": 0.0,
+    "w_soc_squared": 50.0,
+    "w_flicker": 0.25,
+    "training_duration_seconds": 21785.364,
+    "training_duration_hms": "6:03:05"
+}

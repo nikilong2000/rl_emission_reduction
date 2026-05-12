@@ -1,0 +1,23 @@
+{
+    "algorithm": "TD3",
+    "phase": 2,
+    "cell_id": 8,
+    "continued_from": "/lustre/niklas.long/thesis/02_rl_control/logs_cluster/logs/td3/optuna/seeds/seed_1/td3_seed_1_final.zip",
+    "phase1_best_seed": 1,
+    "phase1_baseline": {
+        "rmse_speed_kmph": 3.5150717159841705,
+        "total_nox_g": 73.4181137084961,
+        "delta_soc": 0.29986387491226196
+    },
+    "total_timesteps": 4000000,
+    "n_envs": 30,
+    "w_speed": 1.0,
+    "w_emission": 1.0,
+    "w_fuel": 0.0,
+    "w_brake": 0.25,
+    "w_soc": 0.0,
+    "w_soc_squared": 400.0,
+    "w_flicker": 0.25,
+    "training_duration_seconds": 36719.444,
+    "training_duration_hms": "10:11:59"
+}
