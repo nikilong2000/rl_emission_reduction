@@ -1,0 +1,18 @@
+{
+    "algorithm": "PPO",
+    "phase": "2_optuna",
+    "trial_number": 12,
+    "continued_from": "/lustre/niklas.long/thesis/02_rl_control/logs_cluster_phase1/logs/ppo/optuna/seeds/seed_3/ppo_seed_3_final.zip",
+    "phase1_best_seed": 3,
+    "total_timesteps": 4000000,
+    "n_envs": 20,
+    "w_speed": 1.0,
+    "w_emission": 1.1795482662630499,
+    "w_fuel": 0.0,
+    "w_brake": 0.25,
+    "w_soc": 0.0,
+    "w_soc_squared": 163.79626854871083,
+    "w_flicker": 0.25,
+    "training_duration_seconds": 22186.523,
+    "training_duration_hms": "6:09:46"
+}
