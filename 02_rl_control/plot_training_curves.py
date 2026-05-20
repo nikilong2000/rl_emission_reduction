@@ -28,6 +28,13 @@ python plot_training_curves.py --compare \
     logs_cluster_phase1/logs/sac/optuna/seeds \
     logs_cluster_phase1/logs/td3/optuna/seeds \
     --labels PPO SAC TD3 --smooth 30
+
+# Compare action distributions aggregated across all seeds per algorithm
+python plot_training_curves.py --compare-actions \
+    logs_cluster_phase1/logs/ppo/optuna/seeds \
+    logs_cluster_phase1/logs/sac/optuna/seeds \
+    logs_cluster_phase1/logs/td3/optuna/seeds \
+    --labels PPO SAC TD3
 """
 
 from __future__ import annotations
@@ -254,6 +261,207 @@ def plot(
     plt.show()
 
 
+ACTION_CONFIGS: list[tuple[str, str, tuple[float, float]]] = [
+    ("engine_on", "Engine On (0/1)", (-0.1, 1.1)),
+    ("ice_speed_rpm", "ICE Speed (RPM)", (0, 4500)),
+    ("em2_torque_nm", "EM2 Torque (Nm)", (-450, 450)),
+    ("fuel", "Fuel (mg)", (0, 80)),
+    ("brake_perc", "Brake (%)", (0, 105)),
+]
+
+
+def _find_eval_csvs(root: str) -> list[str]:
+    """Find all evaluation_data.csv files under `root` (recursive, one level
+    of seed_*/trial_* typically)."""
+    paths: list[str] = []
+    for dirpath, _dirnames, filenames in os.walk(root):
+        if "evaluation_data.csv" in filenames:
+            paths.append(os.path.join(dirpath, "evaluation_data.csv"))
+    return sorted(paths)
+
+
+def _seed_name(root: str, csv_path: str) -> str:
+    """Get run-folder name relative to `root` (e.g. 'seed_0')."""
+    rel = os.path.relpath(os.path.dirname(csv_path), root)
+    return rel if rel != "." else os.path.basename(os.path.normpath(root))
+
+
+def load_actions_for_group(
+    root: str,
+    include: list[str] | None = None,
+    exclude: list[str] | None = None,
+) -> tuple[dict[str, np.ndarray], int]:
+    """Concat each action column across all seed CSVs in `root`.
+
+    Returns ({action_key: 1D array}, n_seeds).
+    """
+    csvs = _find_eval_csvs(root)
+    kept: list[str] = []
+    for c in csvs:
+        name = _seed_name(root, c)
+        if include and not _match_any(name, include):
+            continue
+        if exclude and _match_any(name, exclude):
+            continue
+        kept.append(c)
+
+    data: dict[str, list[np.ndarray]] = {k: [] for k, _, _ in ACTION_CONFIGS}
+    for c in kept:
+        try:
+            df = pd.read_csv(c)
+        except Exception as e:
+            print(f"  ! skip {c}: {e}", file=sys.stderr)
+            continue
+        for key, _, _ in ACTION_CONFIGS:
+            if key in df.columns:
+                data[key].append(df[key].to_numpy(dtype=float))
+
+    out = {
+        k: (np.concatenate(v) if v else np.array([], dtype=float))
+        for k, v in data.items()
+    }
+    return out, len(kept)
+
+
+def plot_compare_actions(
+    groups: list[tuple[str, dict[str, np.ndarray], int]],
+    *,
+    bins: int = 100,
+    title: str | None = None,
+    save_path: str | None = None,
+    figsize: tuple[float, float] = (16.0, 9.0),
+    kde: bool = True,
+) -> None:
+    """5-panel grid (one per action). Histogram (density) + KDE overlay,
+    one color per algorithm group."""
+    if not groups:
+        print("No groups to compare.", file=sys.stderr)
+        return
+
+    plt.rcParams.update(
+        {
+            "figure.dpi": 110,
+            "savefig.dpi": 200,
+            "font.size": 11,
+            "axes.titlesize": 12,
+            "axes.labelsize": 11,
+            "legend.fontsize": 10,
+            "axes.grid": True,
+            "grid.alpha": 0.25,
+            "axes.spines.top": False,
+            "axes.spines.right": False,
+        }
+    )
+
+    ncols = 3
+    nrows = (len(ACTION_CONFIGS) + ncols - 1) // ncols
+    fig, axes = plt.subplots(nrows, ncols, figsize=figsize)
+    axes = axes.flatten()
+    colors = _color_cycle(len(groups))
+
+    try:
+        from scipy.stats import gaussian_kde  # noqa: WPS433
+        have_scipy = True
+    except Exception:
+        have_scipy = False
+        if kde:
+            print("scipy not available — falling back to histogram only.",
+                  file=sys.stderr)
+
+    for ax_idx, (key, xlabel, xlim) in enumerate(ACTION_CONFIGS):
+        ax = axes[ax_idx]
+        is_binary = key == "engine_on"
+
+        n_groups = sum(
+            1 for _, data, _ in groups if data.get(key, np.array([])).size > 0
+        )
+        bar_width = 0.8 / max(n_groups, 1) if is_binary else None
+        g_idx = 0
+
+        for (label, data, n), color in zip(groups, colors):
+            arr = data.get(key, np.array([]))
+            if arr.size == 0:
+                continue
+            arr = arr[(arr >= xlim[0]) & (arr <= xlim[1])]
+            if arr.size == 0:
+                continue
+
+            if is_binary:
+                arr_int = np.round(arr).astype(int)
+                probs = np.array(
+                    [np.mean(arr_int == 0), np.mean(arr_int == 1)]
+                )
+                centers = np.array([0.0, 1.0])
+                offset = (g_idx - (n_groups - 1) / 2.0) * bar_width
+                ax.bar(
+                    centers + offset,
+                    probs,
+                    width=bar_width,
+                    color=color,
+                    alpha=0.85,
+                    edgecolor="none",
+                    label=f"{label} (n={n})" if ax_idx == 0 else None,
+                )
+                g_idx += 1
+            else:
+                ax.hist(
+                    arr,
+                    bins=bins,
+                    range=xlim,
+                    density=True,
+                    alpha=0.35,
+                    color=color,
+                    edgecolor="none",
+                    label=f"{label} (n={n})" if ax_idx == 0 else None,
+                )
+
+                if kde and have_scipy and np.std(arr) > 1e-6:
+                    try:
+                        kfn = gaussian_kde(arr)
+                        xs = np.linspace(xlim[0], xlim[1], 400)
+                        ax.plot(
+                            xs, kfn(xs), color=color, linewidth=1.8, alpha=0.95
+                        )
+                    except Exception as e:
+                        print(f"  ! KDE fail for {label}/{key}: {e}",
+                              file=sys.stderr)
+
+        ax.set_xlabel(xlabel)
+        ax.set_title(f"π({key})")
+        if is_binary:
+            ax.set_ylabel("Probability")
+            ax.set_xticks([0, 1])
+            ax.set_xticklabels(["Off (0)", "On (1)"])
+            ax.set_xlim(-0.6, 1.6)
+            ax.set_ylim(0, 1.0)
+        else:
+            ax.set_ylabel("Density")
+            ax.set_xlim(xlim)
+
+    for ax_idx in range(len(ACTION_CONFIGS), len(axes)):
+        axes[ax_idx].set_visible(False)
+
+    # Single legend on figure (collect handles from first axis).
+    handles, labels = axes[0].get_legend_handles_labels()
+    if handles:
+        fig.legend(
+            handles,
+            labels,
+            loc="lower right",
+            bbox_to_anchor=(0.98, 0.05),
+            frameon=False,
+            title="Algorithm",
+        )
+
+    fig.suptitle(title or "Action Distribution π(a) — Aggregated across Seeds",
+                 fontsize=14)
+    fig.tight_layout(rect=(0, 0, 1, 0.97))
+    if save_path:
+        fig.savefig(save_path, bbox_inches="tight")
+        print(f"Saved: {save_path}")
+    plt.show()
+
+
 def plot_compare(
     groups: list[tuple[str, list[Run]]],
     *,
@@ -365,6 +573,25 @@ def main(argv: list[str] | None = None) -> int:
         help="Uncertainty band in --compare mode.",
     )
     p.add_argument(
+        "--compare-actions",
+        nargs="+",
+        default=None,
+        metavar="DIR",
+        help="Aggregate evaluation_data.csv from all seed subdirs and overlay "
+        "5-panel action distribution histograms + KDE across algorithms.",
+    )
+    p.add_argument(
+        "--bins",
+        type=int,
+        default=100,
+        help="Histogram bins for --compare-actions (default: 100).",
+    )
+    p.add_argument(
+        "--no-kde",
+        action="store_true",
+        help="Disable KDE overlay in --compare-actions.",
+    )
+    p.add_argument(
         "--include",
         nargs="+",
         default=None,
@@ -413,6 +640,39 @@ def main(argv: list[str] | None = None) -> int:
         help="List discovered runs and exit (no plot).",
     )
     args = p.parse_args(argv)
+
+    if args.compare_actions:
+        labels = args.labels or [
+            os.path.basename(os.path.normpath(d)) for d in args.compare_actions
+        ]
+        if len(labels) != len(args.compare_actions):
+            print("--labels count must match --compare-actions dir count.",
+                  file=sys.stderr)
+            return 2
+
+        action_groups: list[tuple[str, dict[str, np.ndarray], int]] = []
+        for label, d in zip(labels, args.compare_actions):
+            data, n = load_actions_for_group(d, args.include, args.exclude)
+            total = sum(int(v.size) for v in data.values())
+            print(f"{label}  ({d}): {n} seed(s), {total} action samples total")
+            action_groups.append((label, data, n))
+
+        if args.list:
+            return 0
+        if not any(n for _, _, n in action_groups):
+            print("No evaluation_data.csv files found.", file=sys.stderr)
+            return 1
+
+        plot_compare_actions(
+            action_groups,
+            bins=args.bins,
+            title=args.title,
+            save_path=args.save,
+            figsize=tuple(args.figsize) if args.figsize != (12.0, 6.5)
+            else (16.0, 9.0),
+            kde=not args.no_kde,
+        )
+        return 0
 
     if args.compare:
         labels = args.labels or [
