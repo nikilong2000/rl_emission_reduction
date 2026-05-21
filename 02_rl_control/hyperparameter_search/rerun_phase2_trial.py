@@ -16,11 +16,18 @@ Usage:
     # Rerun the second trial of the PPO phase-2 study
     python rerun_phase2_trial.py --algorithm ppo --trial 1
 
-    # Rerun all non-COMPLETE trials (e.g. all zombie 2nd-array slots)
+    # Rerun all RUNNING zombie trials (killed/timed-out jobs only)
     python rerun_phase2_trial.py --algorithm ppo --auto
+
+    # Also include FAIL trials (exceptions), not just RUNNING zombies
+    python rerun_phase2_trial.py --algorithm ppo --auto --include_failed
 
     # Also mark the original as FAIL to clean the journal
     python rerun_phase2_trial.py --algorithm ppo --trial 1 --mark_failed
+
+NOTE: --auto NEVER targets PRUNED trials. PRUNED is a deliberate MedianPruner
+decision (underperforming trial stopped early) and is a valid study outcome —
+re-running it would waste compute and pollute the study.
 """
 
 import os
@@ -119,15 +126,25 @@ def main():
     group.add_argument(
         "--auto",
         action="store_true",
-        help="Rerun every trial whose state is not COMPLETE.",
+        help="Rerun all RUNNING zombie trials (killed jobs). Never touches PRUNED.",
     )
     group.add_argument(
         "--list", action="store_true", help="Just list all trials and exit."
     )
     parser.add_argument(
+        "--include_failed",
+        action="store_true",
+        help="In --auto mode, also rerun FAIL trials (not just RUNNING). PRUNED still excluded.",
+    )
+    parser.add_argument(
         "--mark_failed",
         action="store_true",
         help="Mark original trial state=FAIL before re-enqueue (cleans RUNNING zombies).",
+    )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="With --trial: rerun even if the trial is PRUNED or COMPLETE.",
     )
     parser.add_argument("--n_envs", type=int, default=8)
     parser.add_argument("--trial_timesteps", type=int, default=4_000_000)
@@ -152,15 +169,25 @@ def main():
         return
 
     if args.auto:
+        # Only RUNNING zombies (killed/timed-out jobs). PRUNED trials are
+        # deliberate MedianPruner outcomes and must never be re-run.
         targets = [
             t.number
             for t in study.trials
-            if t.state != TrialState.COMPLETE and t.params
+            if t.state == TrialState.RUNNING and t.params
         ]
+        if args.include_failed:
+            targets += [
+                t.number
+                for t in study.trials
+                if t.state == TrialState.FAIL and t.params
+            ]
+            targets = sorted(set(targets))
         if not targets:
-            print("\nNo non-COMPLETE trials to rerun.")
+            print("\nNo RUNNING zombie trials to rerun.")
             return
-        print(f"\nAuto-rerun targets: {targets}")
+        kinds = "RUNNING+FAIL" if args.include_failed else "RUNNING"
+        print(f"\nAuto-rerun targets ({kinds} only, PRUNED excluded): {targets}")
     else:
         targets = [args.trial]
 
@@ -175,6 +202,18 @@ def main():
             print(
                 f"\nTrial {trial_num} has no recorded params "
                 "(crashed before suggest_*) — cannot rerun deterministically."
+            )
+            continue
+        if match.state == TrialState.PRUNED and not args.force:
+            print(
+                f"\nTrial {trial_num} is PRUNED (deliberate MedianPruner outcome) — "
+                "skipping. Pass --force to rerun anyway."
+            )
+            continue
+        if match.state == TrialState.COMPLETE and not args.force:
+            print(
+                f"\nTrial {trial_num} is already COMPLETE — skipping. "
+                "Pass --force to rerun anyway."
             )
             continue
         params = dict(match.params)
