@@ -45,7 +45,7 @@ echo ""
 # Hardcoded recovery config — edit only if defaults need changing
 # ============================================================================
 ALGORITHM="sac"
-N_ENVS=8
+N_ENVS=20
 TRIAL_TIMESTEPS=4000000
 LAMBDA_RMSE=20.0
 LAMBDA_SOC=1000.0

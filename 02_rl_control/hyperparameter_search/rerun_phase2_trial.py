@@ -231,6 +231,18 @@ def main():
             n_trials=1,
         )
 
+    # Refresh all_trials.csv + best_params_phase2.json from the journal so the
+    # exported files reflect the reruns (study.optimize alone does not write them).
+    try:
+        from export_phase2_study import export
+
+        export(study, base_log_dir)
+    except Exception as e:
+        print(
+            f"WARNING: could not refresh CSV/best-params ({e}). "
+            "Run export_phase2_study.py manually."
+        )
+
 
 if __name__ == "__main__":
     main()
