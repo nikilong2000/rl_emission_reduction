@@ -51,11 +51,13 @@ PC_METRICS = [
 # --------------------------------------------------------------------------- #
 # Data loading
 # --------------------------------------------------------------------------- #
-def load_scalars(logs_dir: str, algos: list[str]) -> pd.DataFrame:
+def load_scalars(
+    logs_dir: str, algos: list[str], seeds_subpath: str = "optuna/seeds"
+) -> pd.DataFrame:
     """One row per seed with the scalar evaluation metrics."""
     rows = []
     for algo in algos:
-        seed_glob = os.path.join(logs_dir, algo, "optuna", "seeds", "seed_*")
+        seed_glob = os.path.join(logs_dir, algo, seeds_subpath, "seed_*")
         for seed_dir in sorted(glob(seed_glob)):
             f = os.path.join(seed_dir, "evaluation_metrics.json")
             if not os.path.isfile(f):
@@ -69,10 +71,12 @@ def load_scalars(logs_dir: str, algos: list[str]) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
-def load_steps(logs_dir: str, algo: str) -> pd.DataFrame:
+def load_steps(
+    logs_dir: str, algo: str, seeds_subpath: str = "optuna/seeds"
+) -> pd.DataFrame:
     """Pooled per-step evaluation data across all seeds of one algorithm."""
     frames = []
-    seed_glob = os.path.join(logs_dir, algo, "optuna", "seeds", "seed_*")
+    seed_glob = os.path.join(logs_dir, algo, seeds_subpath, "seed_*")
     for seed_dir in sorted(glob(seed_glob)):
         f = os.path.join(seed_dir, "evaluation_data.csv")
         if os.path.isfile(f):
@@ -295,7 +299,7 @@ def _density_contour(ax, xpts, ypts, extent, color):
     ax.contour(xc, yc, h, levels=levels, colors=[color], linewidths=1.6, zorder=5)
 
 
-def plot_engine_map(logs_dir, algos, bsfc, out_path):
+def plot_engine_map(logs_dir, algos, bsfc, out_path, seeds_subpath="optuna/seeds"):
     tri = mtri.Triangulation(bsfc["rpm"], bsfc["torque"])
     extent = [
         bsfc["rpm"].min(),
@@ -323,7 +327,7 @@ def plot_engine_map(logs_dir, algos, bsfc, out_path):
         )
         ax.clabel(cl, inline=True, fontsize=6, fmt="%.0f")
 
-        steps = load_steps(logs_dir, algo)
+        steps = load_steps(logs_dir, algo, seeds_subpath)
         stat = ""
         if not steps.empty:
             on = steps["engine_on"] > 0.5
@@ -464,11 +468,17 @@ def main() -> None:
         default=os.path.join(here, "..", "logs_cluster_phase1", "analysis_plots"),
     )
     p.add_argument("--algos", nargs="+", default=["ppo", "td3", "sac"])
+    p.add_argument(
+        "--seeds_subpath",
+        default="optuna/seeds",
+        help="Subpath under <logs_dir>/<algo>/ containing seed_* dirs. "
+        "Use 'phase2_seeds' for phase-2 validation runs.",
+    )
     args = p.parse_args()
 
     os.makedirs(args.out_dir, exist_ok=True)
 
-    df = load_scalars(args.logs_dir, args.algos)
+    df = load_scalars(args.logs_dir, args.algos, args.seeds_subpath)
     print(
         f"loaded {len(df)} seeds: "
         + ", ".join(f"{a}={ (df.algo==a).sum() }" for a in args.algos)
@@ -488,6 +498,7 @@ def main() -> None:
         args.algos,
         bsfc,
         os.path.join(args.out_dir, "engine_map_occupancy.png"),
+        args.seeds_subpath,
     )
 
 
