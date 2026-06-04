@@ -105,7 +105,7 @@ class EmissionControlEnv(gym.Env):
         self.fixed_target_speed = fixed_target_speed
 
         # If eval_mode or fixed_target_speed is True, we use random_target logic for scheduling
-        if self.fixed_target_speed is not None or self.eval_mode:
+        if (self.fixed_target_speed is not None or self.eval_mode) and self.dataset_path is None:
             self.random_target = True
 
         self.target_speed = (
@@ -273,7 +273,7 @@ class EmissionControlEnv(gym.Env):
         self.df.columns = [col.strip() for col in self.df.columns]
 
         # episode length: fixed for random-target mode, CSV length otherwise
-        if self.eval_mode and self.fixed_target_speed is None:
+        if self.eval_mode and self.fixed_target_speed is None and self.dataset_path is None:
             self.max_steps = 3600
             self.target_speed_schedule = [
                 (0, 50.0),
@@ -487,10 +487,14 @@ class EmissionControlEnv(gym.Env):
             ice_pred = self.ice_out_scaler.inverse_transform(ice_pred_scaled.numpy()[0])
 
         # Index 0: ICE_Torque_Nm
+        # Index 1: fuel_tot_gps (burned fuel rate, g/s)
         # Index 6: NOx_tp_gps (Tailpipe)
+        # Index 8: CO2_tp_gps (Tailpipe CO2, g/s)
         # Index 10: T_Wall_SCR1_K
         ice_torque = ice_pred[0][0]
+        fuel_tot_gps = ice_pred[0][1]
         nox_tp = ice_pred[0][6]
+        co2_tp = ice_pred[0][8]
         t_wall_scr1 = ice_pred[0][10]
 
         # 4. Prepare Inputs for PG Model
@@ -643,6 +647,8 @@ class EmissionControlEnv(gym.Env):
             "speed_error": speed_error,
             "nox": nox_tp,
             "fuel": fuel_mg,
+            "fuel_tot_gps": fuel_tot_gps,
+            "co2_tp_gps": co2_tp,
             "engine_on": engine_on,
             "steps_since_last_engine_switch": self.steps_since_last_engine_switch,
             "ice_torque": ice_torque,

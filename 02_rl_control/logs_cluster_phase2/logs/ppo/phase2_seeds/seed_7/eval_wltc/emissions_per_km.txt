@@ -1,0 +1,44 @@
+Emissions Summary
+=================
+Samples used: 3600
+Step size (dt): 0.500 s
+Total distance (km): 23.250757
+Total NOx (mg): 4040.642
+Overall NOx (mg/km): 173.785
+Overall NOx pass (<=80 mg/km): False
+
+NOx by WLTC phase
+=================
+phase,duration_s,distance_km,nox_mg,nox_mg_per_km,pass_80mg_per_km
+low,589,3.066888,2794.391,911.148,False
+medium,433,4.713887,384.519,81.571,False
+high,455,7.182609,439.447,61.182,True
+extra_high,323,8.287373,422.286,50.955,True
+
+NOx per km segments
+====================
+Kilometer, NOx (mg/km), NOx_Pass (<=80 mg/km)
+1, 1933.48, False
+2, 487.89, False
+3, 348.36, False
+4, 132.92, False
+5, 94.94, False
+6, 70.27, True
+7, 34.20, True
+8, 121.84, False
+9, 90.99, False
+10, 60.60, True
+11, 21.98, True
+12, 11.44, True
+13, 12.93, True
+14, 35.92, True
+15, 200.34, False
+16, 76.70, True
+17, 66.61, True
+18, 11.95, True
+19, 3.53, True
+20, 33.54, True
+21, 24.12, True
+22, 44.04, True
+23, 68.59, True
+Partial (0.13 km), 413.34, False

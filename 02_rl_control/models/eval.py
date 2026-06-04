@@ -65,6 +65,7 @@ def evaluate_model(
     use_thermal=False,
     random_target=False,
     target_speed=None,
+    cycle="wltc",
 ):
     algo_key = algorithm.lower()
     AlgoClass = ALGO_CLASSES.get(algo_key)
@@ -109,10 +110,11 @@ def evaluate_model(
     print(40 * "=", f"Evaluating {algo_key.upper()}...")
 
     def make_env():
+        cycle_file = "WLTC_high.csv" if cycle == "wltc_high" else "WLTC.csv"
         wltc_path = os.path.join(
             os.path.dirname(current_dir),
             "data_train",
-            "WLTC.csv",
+            cycle_file,
         )
         env_cls = EmissionControlEnvThermal if use_thermal else EmissionControlEnv
         if target_speed is not None:
@@ -174,6 +176,8 @@ def evaluate_model(
         "ice_torque": [],
         "nox": [],
         "fuel": [],
+        "fuel_tot_gps": [],
+        "co2_tp_gps": [],
         "engine_on": [],
         "ice_speed_rpm": [],
         "em2_torque_nm": [],
@@ -221,6 +225,8 @@ def evaluate_model(
         eval_results["ice_torque"].append(raw_obs[3])
         eval_results["nox"].append(raw_obs[4])
         eval_results["fuel"].append(i.get("fuel"))
+        eval_results["fuel_tot_gps"].append(i.get("fuel_tot_gps", np.nan))
+        eval_results["co2_tp_gps"].append(i.get("co2_tp_gps", np.nan))
         eval_results["engine_on"].append(i.get("engine_on"))
         eval_results["ice_speed_rpm"].append(i.get("ice_speed_rpm"))
         eval_results["em2_torque_nm"].append(i.get("em2_torque_nm"))
@@ -236,12 +242,24 @@ def evaluate_model(
     speed_actual = np.array(eval_results["speed_actual"])
     speed_target = np.array(eval_results["speed_target"])
     fuel_mg = np.array(eval_results["fuel"])
+    fuel_tot_gps = np.array(eval_results["fuel_tot_gps"], dtype=float)
+    co2_tp_gps = np.array(eval_results["co2_tp_gps"], dtype=float)
     nox_gs = np.array(eval_results["nox"])
     soc = np.array(eval_results["soc"])
+    engine_on = np.array(eval_results["engine_on"], dtype=bool)
 
     dt = 0.5  # since measurements have 2hz frequency (2 steps == 1 second)
-    total_fuel_g = np.sum(fuel_mg) / 1000.0
+    total_fuel_g = np.sum(fuel_mg) / 1000.0  # commanded injection (mg/step -> g)
+    total_fuel_burned_g = float(np.nansum(fuel_tot_gps) * dt)  # ICE-model burned fuel (g/s -> g)
+    total_co2_g = float(np.nansum(co2_tp_gps) * dt)
     total_nox_g = np.sum(nox_gs) * dt
+
+    # Distance from the actual speed trace (km/h * s -> km); enables per-km metrics
+    total_distance_km = float(np.sum(speed_actual) * dt / 3600.0)
+    engine_off_pct = float(100.0 * np.mean(~engine_on)) if engine_on.size else 0.0
+
+    def _per_km(total_g):
+        return float(total_g / total_distance_km) if total_distance_km > 1e-6 else float("nan")
 
     speed_error = speed_actual - speed_target
     mae_speed = np.mean(np.abs(speed_error))
@@ -265,7 +283,14 @@ def evaluate_model(
         {
             "total_reward": float(total_reward),
             "total_fuel_g": float(total_fuel_g),
+            "total_fuel_burned_g": total_fuel_burned_g,
+            "total_co2_g": total_co2_g,
             "total_nox_g": float(total_nox_g),
+            "total_distance_km": total_distance_km,
+            "nox_g_per_km": _per_km(total_nox_g),
+            "fuel_burned_g_per_km": _per_km(total_fuel_burned_g),
+            "co2_g_per_km": _per_km(total_co2_g),
+            "engine_off_pct": engine_off_pct,
             "mae_speed_kmph": float(mae_speed),
             "rmse_speed_kmph": float(rmse_speed),
             "initial_soc": float(initial_soc),
@@ -329,6 +354,13 @@ if __name__ == "__main__":
         default=None,
         help="Evaluate with a specific fixed target speed (km/h). Implies --random_target.",
     )
+    parser.add_argument(
+        "--cycle",
+        type=str,
+        default="wltc",
+        choices=["wltc", "wltc_high"],
+        help="Drive cycle to use for evaluation (default: wltc).",
+    )
     args = parser.parse_args()
 
     model_dir = os.path.dirname(os.path.abspath(args.model_path))
@@ -370,4 +402,5 @@ if __name__ == "__main__":
         use_thermal=use_thermal,
         random_target=random_target,
         target_speed=args.target_speed,
+        cycle=args.cycle,
     )

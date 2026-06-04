@@ -234,6 +234,8 @@ def plot(
     title: str | None = None,
     save_path: str | None = None,
     figsize: tuple[float, float] = (12.0, 6.5),
+    xlim: tuple[float, float] | None = None,
+    ylim: tuple[float, float] | None = None,
 ) -> None:
     if not runs:
         print("No runs to plot.", file=sys.stderr)
@@ -273,6 +275,10 @@ def plot(
     ax.set_ylabel("Episode Reward")
     ax.set_title(title or "Training Curves")
     ax.margins(x=0.01)
+    if xlim is not None:
+        ax.set_xlim(xlim)
+    if ylim is not None:
+        ax.set_ylim(ylim)
 
     # Legend outside on the right; scrollable column count grows for many runs.
     ncol = 1 if len(runs) <= 20 else 2
@@ -672,6 +678,8 @@ def plot_compare(
     title: str | None = None,
     save_path: str | None = None,
     figsize: tuple[float, float] = (12.0, 6.5),
+    xlim: tuple[float, float] | None = None,
+    ylim: tuple[float, float] | None = None,
 ) -> None:
     """Overlay mean (± band) reward curve for each algorithm group."""
     if not groups:
@@ -728,6 +736,10 @@ def plot_compare(
     ax.set_ylabel("Episode Reward")
     ax.set_title(title or "Algorithm Training Speed Comparison — Mean across Seeds")
     ax.margins(x=0.01)
+    if xlim is not None:
+        ax.set_xlim(xlim)
+    if ylim is not None:
+        ax.set_ylim(ylim)
     ax.legend(loc="best", frameon=False)
 
     fig.tight_layout()
@@ -861,6 +873,22 @@ def main(argv: list[str] | None = None) -> int:
         help="Figure size in inches.",
     )
     p.add_argument(
+        "--xlim",
+        nargs=2,
+        type=float,
+        default=None,
+        metavar=("MIN", "MAX"),
+        help="Axis x limits for training-curve plots (default / --compare).",
+    )
+    p.add_argument(
+        "--ylim",
+        nargs=2,
+        type=float,
+        default=None,
+        metavar=("MIN", "MAX"),
+        help="Axis y limits for training-curve plots (default / --compare).",
+    )
+    p.add_argument(
         "--list",
         action="store_true",
         help="List discovered runs and exit (no plot).",
@@ -958,6 +986,8 @@ def main(argv: list[str] | None = None) -> int:
             title=args.title,
             save_path=args.save,
             figsize=tuple(args.figsize),
+            xlim=tuple(args.xlim) if args.xlim else None,
+            ylim=tuple(args.ylim) if args.ylim else None,
         )
         return 0
 
@@ -990,6 +1020,8 @@ def main(argv: list[str] | None = None) -> int:
         title=args.title,
         save_path=args.save,
         figsize=tuple(args.figsize),
+        xlim=tuple(args.xlim) if args.xlim else None,
+        ylim=tuple(args.ylim) if args.ylim else None,
     )
     return 0
 

@@ -1,0 +1,22 @@
+{
+    "model_path": "/Users/niklaslongschiefelbein/local_documents/THESIS/code/rl_emission_reduction/02_rl_control/logs_cluster_phase2/logs/ppo/phase2_seeds/seed_4/ppo_phase2_seed_4_final.zip",
+    "train_config_path": "/Users/niklaslongschiefelbein/local_documents/THESIS/code/rl_emission_reduction/02_rl_control/logs_cluster_phase2/logs/ppo/phase2_seeds/seed_4/train_config.json",
+    "total_reward": 3586.939453125,
+    "total_fuel_g": 44.506732105970386,
+    "total_fuel_burned_g": 3004.8499332666397,
+    "total_co2_g": 723.342050537467,
+    "total_nox_g": 3.8105039596557617,
+    "total_distance_km": 23.22804069519043,
+    "nox_g_per_km": 0.16404758393764496,
+    "fuel_burned_g_per_km": 129.36303895355326,
+    "co2_g_per_km": 31.1408981941056,
+    "engine_off_pct": 0.0,
+    "mae_speed_kmph": 0.6240162013044023,
+    "rmse_speed_kmph": 0.8483120077137984,
+    "initial_soc": 0.7002889513969421,
+    "final_soc": 0.6612805128097534,
+    "delta_soc": -0.03900843858718872,
+    "max_abs_soc_drift": 0.04717910289764404,
+    "rms_soc_drift": 0.037374306470155716,
+    "custom_notes": ""
+}
