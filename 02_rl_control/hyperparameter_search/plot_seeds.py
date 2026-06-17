@@ -11,6 +11,7 @@ Usage:
     python plot_seeds.py --results_dir logs/sac/optuna/seeds/ --algorithm SAC
 """
 import os
+import re
 import sys
 import json
 import argparse
@@ -241,7 +242,12 @@ def main(args):
     algo_label = args.algorithm.upper() if args.algorithm else "RL"
 
     seed_dirs = sorted(glob.glob(os.path.join(results_dir, "seed_*")))
-    seed_dirs = [d for d in seed_dirs if os.path.isdir(d)]
+    # Only canonical "seed_<int>" dirs; skip auxiliary copies like
+    # "seed_7_wltc" or "seed_7 copy" that would contaminate the aggregates.
+    seed_dirs = [
+        d for d in seed_dirs
+        if os.path.isdir(d) and re.fullmatch(r"seed_\d+", os.path.basename(d))
+    ]
     print(f"Found {len(seed_dirs)} seed directories in {results_dir}")
     if not seed_dirs:
         print("No seed directories found. Nothing to plot.")

@@ -236,6 +236,7 @@ def plot(
     figsize: tuple[float, float] = (12.0, 6.5),
     xlim: tuple[float, float] | None = None,
     ylim: tuple[float, float] | None = None,
+    legend_cols: int | None = None,
 ) -> None:
     if not runs:
         print("No runs to plot.", file=sys.stderr)
@@ -281,7 +282,7 @@ def plot(
         ax.set_ylim(ylim)
 
     # Legend outside on the right; scrollable column count grows for many runs.
-    ncol = 1 if len(runs) <= 20 else 2
+    ncol = legend_cols if legend_cols else (1 if len(runs) <= 20 else 2)
     leg = ax.legend(
         loc="center left",
         bbox_to_anchor=(1.01, 0.5),
@@ -889,6 +890,13 @@ def main(argv: list[str] | None = None) -> int:
         help="Axis y limits for training-curve plots (default / --compare).",
     )
     p.add_argument(
+        "--legend-cols",
+        type=int,
+        default=None,
+        help="Force legend column count for default plot() mode (default: "
+        "1 for ≤20 runs, 2 otherwise).",
+    )
+    p.add_argument(
         "--list",
         action="store_true",
         help="List discovered runs and exit (no plot).",
@@ -1022,6 +1030,7 @@ def main(argv: list[str] | None = None) -> int:
         figsize=tuple(args.figsize),
         xlim=tuple(args.xlim) if args.xlim else None,
         ylim=tuple(args.ylim) if args.ylim else None,
+        legend_cols=args.legend_cols,
     )
     return 0
 

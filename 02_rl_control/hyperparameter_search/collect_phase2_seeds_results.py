@@ -13,6 +13,7 @@ Usage:
 """
 
 import os
+import re
 import json
 import glob
 import argparse
@@ -36,6 +37,10 @@ def collect(logs_dir: str) -> pd.DataFrame:
             glob.glob(os.path.join(logs_dir, algo, "phase2_seeds", "seed_*"))
         )
         for sd in seeds:
+            # Skip auxiliary dirs like "seed_7_wltc" or "seed_7 copy"; only
+            # canonical "seed_<int>" runs are part of the 10-seed validation.
+            if not re.fullmatch(r"seed_\d+", os.path.basename(sd)):
+                continue
             mfile = os.path.join(sd, "evaluation_metrics.json")
             cfile = os.path.join(sd, "train_config.json")
             if not (os.path.exists(mfile) and os.path.exists(cfile)):

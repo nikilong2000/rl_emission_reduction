@@ -93,8 +93,8 @@ def plot_evaluation(results, log_dir, config):
     axes[1].set_ylabel("SOC")
     axes[1].set_ylim(-0.1, 1.1)
     axes[1].set_title("State of Charge (1 = full, 0 = empty)")
-    axes[1].axhline(y=0.2, color="r", linestyle=":", alpha=0.5)
-    axes[1].axhline(y=0.9, color="r", linestyle=":", alpha=0.5)
+    axes[1].axhline(y=0, color="r", linestyle=":", alpha=0.5)
+    axes[1].axhline(y=1, color="r", linestyle=":", alpha=0.5)
     axes[1].grid(True)
 
     # 3. NOx
