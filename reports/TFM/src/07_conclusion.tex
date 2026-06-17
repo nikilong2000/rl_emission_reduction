@@ -1,0 +1,28 @@
+\chapter{Conclusion}
+\label{chap:conclusion}
+
+This thesis presented \ac{RL}-based strategies for minimising \ac{NOx} emissions in a \ac{HEV}. This final chapter summarises the main aspects of the work and outlines promising directions for future research based on the identified limitations.
+
+\section{Summary}
+This thesis demonstrated that \ac{RL}-based energy-management controllers can be trained in a surrogate \ac{HEV} environment represented by a cascaded \ac{LSTM} architecture. The proposed curriculum-inspired pipeline first established a basic speed-tracking capability in Phase~1 and subsequently refined the learned policies in Phase~2 by adding reward terms for \ac{SOC} sustainment and tailpipe \ac{NOx} reduction. This staged formulation progressively transformed a single-objective into a multi-objective control problem and produced two stable candidate controllers: \ac{PPO} and \ac{SAC}. \ac{TD3}, by contrast, exhibits unstable behaviour due to the Phase~2 reward change and was therefore not considered a robust final candidate.
+
+The Phase~1 agents were able to track the reference speed, but often did so with large \ac{SOC} drift and high cumulative \ac{NOx}. Activating the multi-objective reward in Phase~2 significantly reduced both quantities while preserving speed-tracking quality. For the two stable agents, cumulative \ac{NOx} fell by roughly one order of magnitude and the \ac{SOC} practically stayed constant. The operating-point analysis showed that the learned policies shifted engine operation away from high-load, high-\ac{NOx} regions of the measured map towards lower-load operating points, although this also moved parts of the operation away from the most efficient \ac{BSFC} region.
+
+The zero-shot \ac{WLTC} comparison further proved the agent's ability to generalise to unseen situations. The learned controllers tracked the realistic driving cycle more accurately than the rule-based reference controller, but they still consumed more fuel and did not yet provide a clear population-level environmental advantage. However, \textbf{SAC seed~7 reached the Euro~6 \ac{NOx} limit of $80$\,mg/km, improved speed tracking relative to the rule-based controller, and remained charge-sustaining}, but at a higher fuel cost.
+
+\section{Future Work}
+Promising directions for future research follow directly from the limitations discussed in \autoref{sec:limitations_of_the_study}; these are therefore not repeated in full here. However, the limitations of this thesis do not capture all possible extensions, because the initial scope necessarily constrained the directions that could be explored. The following paragraphs highlight additional opportunities for extending the proposed framework.
+
+\paragraph{Hybrid rule-based and learning-based control.}
+A particularly promising direction is closer integration of expert knowledge into the learning-based controller. Combining a rule-based high-level supervisor with a learned low-level \ac{DRL} controller could exploit the strengths of both approaches: the reliability, interpretability, and safety of hand-crafted rules, together with the ability of \ac{RL} to optimise complex nonlinear control problems. The rule-based layer could enforce safety and component-protection constraints, while the learned policy would optimise local actuator decisions within this constrained operating envelope.
+
+\paragraph{Algorithmic improvements.}
+Although this work addressed the complex integration of \ac{HEV} control and \ac{AI}, the scope of the thesis allowed only a limited subset of possible algorithmic improvements to be explored. Future work could therefore investigate more advanced \ac{RL} methods and training refinements to improve stability, performance and widen the scope. Examples could include dedicated learning-rate annealing and prioritised experience replay instead of a standard replay buffer. Most importantly, the underlying control problem could be treated more explicitly as a \ac{POMDP} by using recurrent \ac{RL} agents, which would allow the policy to model hidden internal states, such as the thermal state of the exhaust system.
+
+\paragraph{A more holistic view.}
+Although this point is already addressed in the limitations, it is important enough to emphasise again here: this thesis represents only a partial view of the broader control problem. Future research could use the proposed framework to extend the multi-objective reward design by including additional objectives, such as \(\mathrm{CO}_2\) emissions, direct fuel consumption, and component longevity.
+
+\section{Final Remarks}
+Overall, this thesis should be read as a proof of concept rather than as a deployable control solution. It shows that emission-aware \ac{RL}-based \ac{HEV} control is technically feasible in a surrogate environment, but it also highlights that environmental advantages must be assessed with care: reducing one pollutant in simulation is not equivalent to solving the broader sustainability challenge.
+
+The main contribution is therefore methodological. The developed framework, training pipeline, and evaluation procedure provide a basis for future work within the \ac{LDCI2027} project and beyond. With additional environmental objectives and validation in the real environment, hopefully, this work contributes to cleaner and more efficient sustainable mobility.

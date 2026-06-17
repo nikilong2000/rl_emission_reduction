@@ -1,0 +1,85 @@
+\chapter{Introduction}
+\label{chap:introduction}
+More than ever, the transition towards increasingly sustainable technological systems has become one of the central engineering challenges of today. Global warming and the continued accumulation of greenhouse-gas (GHG) emissions require to reconsider how energy is produced, converted, and consumed. In this context, the transport sector plays a particularly important role since it accounts for almost one third of the European Union's total GHG emissions in 2023~\cite{european_environment_agency_sustainability_2026}. Improving the sustainability of transport is therefore not only a technological opportunity, but also an environmental responsibility.
+
+While passenger cars are responsible for around 72\% of Europe's transport activity,measured in passenger kilometres, conventional combustion-engine vehicles still represented a market share of 31\% in early 2026 and therefore remain a key target for improvement~\cite{european_environment_agency_sustainability_2026, icct_-_international_council_on_clean_transportation_european_nodate}. At the same time, the transition towards alternative propulsion systems is already reshaping the automotive landscape. Fully electric vehicles provide one important pathway, but \acp{HEV} offer a particularly relevant intermediate solution because they combine the flexibility and range of conventional powertrains with the efficiency benefits of electrification~\cite{enang_modelling_2017, garcia_life_2022}. In particular, hybrid architectures create new opportunities to reduce fuel consumption and emissions through more efficient coordination of the engine, electric machines, battery, and the aftertreatment system.
+
+This thesis is situated within that transition. It focuses on the control of hybrid electric vehicles, where the main challenge is no longer only the engineering of the hardware itself, but also the design of operating strategies that exploit the system's complexity in an efficient and robust manner. The highly non-linear system dynamics motivate the investigation of Artificial Intelligence (AI) based methods, such as \ac{RL}, as a framework for developing control policies while targeting emission reduction, efficiency, and drivability~\cite{frey_data-based_2025, wang_energy_2025}.
+
+\section{Problem Description}
+\label{sec:problem_description}
+Since HEVs are already established on the market, efficient control strategies for such vehicles already exist. However, these conventional approaches exhibit several limitations that motivate the investigation of \ac{RL} as an alternative control strategy.
+
+\paragraph{Real-time execution versus global optimality.}
+A fundamental problem in HEV control is the trade-off between achieving the best possible fuel economy and being able to execute the control software in real time. Global optimisation methods, such as \ac{DP}, can compute the mathematical optimum for fuel efficiency, but they require complete prior knowledge of the driving cycle in advance. This requirement, together with their high computational burden, makes DP unsuitable for real-time control policies~\cite{enang_modelling_2017, serrao_comparative_2011}. RL addresses this limitation by combining the global optimisation perspective of DP with the real-time execution speed of standard controllers~\cite{xu_parametric_2020}. Provided that training is successful, RL can learn a parameterised control strategy offline and then use one-step predictions to execute near-optimal decisions in real time, with computational times averaging less than a millisecond per action~\cite{tang_double_2022}.
+
+\paragraph{Calibration and heuristic imprecision.}
+Currently, the automotive industry relies mainly on rule-based \acp{EMS} because they are simple, understandable, and reliable~\cite{peng_rule-based_2015, lin_progress_2024}. These control strategies rely on fixed thresholds and the subjective experience of engineers~\cite{peng_rule_2017, du_heuristic_2021}. As a result, rules must be calibrated meticulously for the specific hardware configuration and driving conditions~\cite{zhou_novel_2021}. RL addresses this rigidity through its self-learning and trial-and-error capabilities~\cite{sutton_reinforcement_2020}. By directly interacting with the environment, RL can discover complex relationships autonomously and formulate policies without manual tuning or predefined heuristic rules.
+
+\paragraph{Dependency on physical models and future forecasts.}
+Other advanced real-time control strategies, such as \ac{MPC} and the \ac{ECMS}, struggle with environmental uncertainties. \ac{ECMS} requires extensive tuning of an ``equivalence factor'' to adapt to varying conditions, while MPC depends heavily on sufficiently accurate predictions of future conditions within its prediction horizon, which are generally not available in real-world scenarios \cite{enang_modelling_2017, tan_energy_2019}. Model-free RL addresses this issue as a data-driven approach that does not require an explicit physical model or prior knowledge of the driving route in order to make decisions. Instead, it leverages its experiences to learn robust control strategies offline in advance.
+
+\paragraph{Multi-objective conflicts.}
+The multi-objective nature of HEV control makes all of the previously mentioned challenges considerably harder, because several competing objectives must be balanced simultaneously. Minimising fuel consumption, reducing tailpipe emissions, maintaining the battery's \ac{SOC}, and preserving component durability together create a highly complex and high-dimensional optimisation problem. This leads to the curse of dimensionality: as the number of relevant states, actions, and objectives increases, the control problem becomes more difficult to represent, calibrate, and optimise. Rule-based strategies become increasingly challenging to tune, local optimisation methods such as ECMS or MPC struggle to balance all objectives consistently under changing conditions, global optimisation methods such as DP become computationally unfeasable, and tabular RL requires discretisation of continuous variables, which introduces discretisation errors~\cite{tresca_cutting-edge_2025, enang_modelling_2017, tan_energy_2019, lillicrap_continuous_2019}.
+
+Taken together, these considerations suggest that the difficulty in HEV control is not a single isolated weakness of existing methods, but the need to address all of these challenges simultaneously: real-time feasibility, calibration effort, uncertainty, and multi-objective complexity must be handled jointly if hybrid control strategies are to realise their full potential.
+
+\section{Motivation}
+The motivation of this thesis follows directly from the limitations outlined above. If conventional \ac{HEV} control strategies struggle because real-time feasibility, calibration effort, uncertainty, and multi-objective complexity must be handled simultaneously, then \ac{DRL} appears, at least in theory, to offer a suitable alternative. By combining data-driven learning with neural-network function approximation, \ac{DRL} offers the potential to handle nonlinear dynamics, reduce reliance on manual calibration, avoid explicit physical modelling requirements, and address high-dimensional multi-objective optimisation problems more effectively than the previously discussed alternatives~\cite{sutton_reinforcement_2020}.
+
+This broader methodological shift is reflected in the historical evolution of \acp{EMS}, where classical rule-based and optimisation-based approaches have increasingly been complemented by learning-based strategies. As shown in \autoref{fig:evolution_ems}, \ac{RL}-based methods became a visible part of the \ac{EMS} research landscape towards the end of the 2010s. The figure therefore positions this thesis within a broader development in \ac{HEV} control rather than as an isolated application of \ac{DRL}.
+
+\begin{figure}[htbp]
+  \centering
+  \includestandalone[width=0.85\textwidth]{tikz/hev_ems_progress}
+  \caption[Evolution of EMSs]{Tentative evolution of \acp{EMS} from 1993 to 2018; adapted from~\cite{biswas_energy_2019}.}
+  \label{fig:evolution_ems}
+\end{figure}
+
+It is this promise of learning-based \ac{EMS} design that initiated the broader research project of which this thesis forms a part.
+
+This work is a standalone master's thesis, but it is also embedded in the activities of the IDEAI (\ac{IDEAI}) research centre at the UPC (\ac{UPC}) within the CORNET's funding project \cite{cornet_-_collective_research_networking_cornet_nodate} \ac{LDCI2027}. The project brings together several institutions with complementary roles, including the German research association for combustion engines \ac{FVV} e.V.~\cite{fvv_e_v_-_forschungsvereinigung_verbrennungskraftmaschinen_fvv_nodate}, the UPC~\cite{universitat_politecnica_de_catalunya_upc_nodate}, the \ac{IFS}~\cite{institut_fur_fahrzeugtechnik_stuttgart_institut_2026}, and the \ac{TU} Berlin~\cite{technische_universitat_berlin_technische_2026}.
+
+Within this collaboration, each participant has a clearly defined responsibility: TU Berlin is responsible for the engine test bench in order to obtain real measurement data from sensor systems; IFS is responsible for modelling the engine and the power-split architecture; and the UPC is responsible for the control strategy. The common objective of the project is to reduce \ac{NOx} emissions so that light-duty hybrid vehicles can comply with the emission regulations imposed by the EURO guidelines~\cite{european_union_regulation_2024, european_union_regulation_2007}. In this sense, the present thesis should be understood as one concrete contribution to a larger research effort that investigates whether DRL-based control can become a viable method for HEV operation.
+
+At the same time, this thesis continues earlier work on \ac{EAT} before the turbine of a diesel engine and builds on previous achievements within the IDEAI research centre~\cite{cuberos_munoz_developing_2025, universitat_politecnica_de_catalunya_development_2025}. The broader methodological direction therefore remains consistent: the development of intelligent control systems and suitable hybrid-electric-vehicle models using concepts from \ac{AI}, \acp{ANN}, and \ac{RL}.
+
+\section{Objectives}
+\label{sec:objectives}
+This thesis pursues the following objectives and scope:
+
+\begin{itemize}
+  \item \textbf{This thesis is} a proof-of-concept study of DRL-based control for the considered hybrid electric vehicle.
+  \item \textbf{This thesis is} an assessment of the general feasibility of DRL for the given control task.
+  \item \textbf{This thesis is} a comparative study of selected RL algorithms, including their strengths, weaknesses, and practical trade-offs.
+  \item \textbf{This thesis is} an investigation of whether \ac{NOx} emission reduction can be improved in comparison with industry-standard strategies such as rule-based control.
+  \item \textbf{This thesis is} a contribution to the broader research project, intended to support future scientific and industrial evaluation of RL-based HEV control.
+  \item \textbf{This thesis is not} deployable production software for direct industrial use.
+  \item \textbf{This thesis is not} autonomous-driving software or a driver-replacing system.
+\end{itemize}
+
+\section{Contributions}
+This thesis contributes to the field of \ac{RL}-based \ac{HEV} control as follows:
+
+\begin{enumerate}
+  \item \textbf{A surrogate-based \ac{DRL} control framework.} The considered \ac{HEV} control task is formulated as a \ac{DRL} problem in which an agent interacts with a cascaded \ac{LSTM}-based surrogate environment. The framework targets speed-trajectory tracking while explicitly accounting for tailpipe \ac{NOx} emissions and battery \ac{SOC}.
+  \item \textbf{A curriculum-inspired training strategy.} A two-phase training procedure is proposed in which the agents first learn the fundamental speed-tracking task and are then fine-tuned with additional emission- and charge-sustaining objectives. This staged design separates basic controllability from the more challenging multi-objective optimisation problem.
+  \item \textbf{A comparative actor--critic study.} Three actor--critic \ac{RL} algorithms, namely \ac{PPO}, \ac{SAC}, and \ac{TD3}, are implemented and compared using a common environment, evaluation protocol, and hyperparameter-optimisation workflow. This comparison highlights both algorithmic strengths and practical robustness limitations.
+  \item \textbf{A WLTC generalisation evaluation.} The learned controllers are evaluated on the standardised \ac{WLTC} profile against a rule-based reference controller. This evaluation provides a first indication of generalisation behaviour, places the learned controllers in relation to a more industry-standard solution, and reveals remaining trade-offs between \ac{NOx}, fuel consumption, speed tracking, and charge sustainment.
+  \item \textbf{Project-level design insights.} The thesis provides guidance for future development within the \ac{LDCI2027} project by documenting the influence of reward design, reward-weight selection, algorithm choice, and surrogate-model limitations on \ac{RL}-based \ac{HEV} control.
+\end{enumerate}
+
+\section{Thesis Organisation}
+The remainder of this thesis is organised as follows.
+
+\begin{itemize}
+  \item \chapterref{chap:theory} introduces the technical foundations required for this thesis. It summarises relevant aspects of \acp{HEV}, \acp{ANN}, \ac{LSTM}-based networks, and \ac{RL}, with particular emphasis on actor--critic architectures.
+  \item \chapterref{chap:related_work} reviews previous work within the \ac{LDCI2027} project and situates this thesis within the broader state of the art on applying \ac{RL} to \ac{HEV} control.
+  \item \chapterref{chap:methodology} formulates the control task as an \ac{RL} problem and describes the conceptual approach used to address the multi-objective control goal, including the staged training strategy and evaluation methodology.
+  \item \chapterref{chap:experimental_setup} provides the technical implementation details, including the \ac{LSTM} surrogate models, the \ac{RL} environment, the selected algorithms, the hyperparameter-optimisation procedure, and the training infrastructure.
+  \item \chapterref{chap:results} presents and analyses the Phase~1 and Phase~2 results, focusing on speed tracking, \ac{NOx} emissions, \ac{SOC} behaviour, operating-point shifts, and zero-shot \ac{WLTC} generalisation.
+  \item \chapterref{chap:discussion} interprets the results, discusses the main findings and limitations, and reflects on their implications for \ac{RL}-based \ac{HEV} control and sustainability.
+  \item \chapterref{chap:conclusion} summarises the thesis, states the main conclusions, and outlines promising directions for future research.
+\end{itemize}
+
+\Chapteronlyref{chap:theory} is intentionally selective: it does not aim to provide an exhaustive overview of all intersecting fields, but instead synthesise the concepts and findings most directly connected to the objectives of this thesis.

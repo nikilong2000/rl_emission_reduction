@@ -1,0 +1,130 @@
+\documentclass[tikz,border=10pt]{standalone}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta, positioning, calc}
+
+\begin{document}
+% Custom colours matched to the RL topology diagram
+\definecolor{catborder}{HTML}{000000}
+\definecolor{algborder}{HTML}{7A9DBC}
+\definecolor{hlfill}{HTML}{ffffff}
+\definecolor{algohl}{HTML}{D9E6F5} % Light blue for the ANN highlight
+
+\begin{tikzpicture}[
+    x=0.89cm, % Compresses the diagram horizontally a tiny bit
+    font=\sffamily,
+    >=Latex,
+    % Styles for the category boxes (Orange border)
+    category/.style={
+      rectangle, rounded corners=8pt, draw=catborder, thick,
+      fill=white, minimum width=4.0cm, text width=3.8cm, minimum height=1.2cm,
+      align=center, font=\normalsize
+    },
+    % Styles for the leaf/algorithm boxes (Blue border)
+    algo/.style={
+      rectangle, rounded corners=4pt, draw=algborder, thick,
+      fill=hlfill, minimum width=3.6cm, text width=3.4cm, minimum height=0.9cm,
+      align=center, font=\normalsize
+    },
+    % Highlighted style for specific algorithms
+    algohl/.style={
+      algo, fill=algohl
+    },
+    trunk/.style={thick},
+    branch/.style={->, thick},
+    splitline/.style={->, thick, rounded corners=6pt}
+  ]
+
+  % ==========================================
+  % 1. CATEGORY NODES
+  % ==========================================
+
+  % Level 0
+  \node[category] (root)    at (-2.94, 0)      {HEV energy management \\ strategies};
+
+  % Level 1
+  \node[category] (offline) at (-12.50, -2.5)  {HEV offline energy \\ management strategies};
+  \node[category] (online)  at (6.62, -2.5)    {HEV online energy \\ management strategies};
+
+  % Level 2
+  \node[category] (rule)    at (-0.25, -5.0)   {Rule based energy \\ management strategies};
+  \node[category] (opt)     at (13.50, -5.0)   {Online optimisation \\ based strategies};
+
+  % Level 3 (Fuzzy category)
+  \node[category] (fuz)     at (3.50, -7.5)    {Fuzzy rule based \\ control strategies};
+
+  % ==========================================
+  % 2. ALGORITHM / LEAF NODES
+  % ==========================================
+
+  % Deterministic leaf (Acts as a category parallel to Fuzzy, but styled as a leaf)
+  \node[algo] (det)  at (-4.00, -7.5)   {Deterministic rule based \\ energy management \\ strategy};
+
+  % Offline Leaves (Two columns flanking the -12.5 spine)
+  \node[algo] (lp)   at (-15.00, -5.0)  {Linear programming};
+  \node[algo] (dp)   at (-10.00, -5.0)  {Dynamic programming};
+  \node[algo] (ga)   at (-15.00, -6.5)  {Genetic algorithm};
+  \node[algo] (pso)  at (-10.00, -6.5)  {Particle swarm \\ optimisation};
+
+  % Fuzzy Leaves (Two columns flanking the 3.5 spine)
+  \node[algo] (tfcs) at (1.00, -9.0)    {Traditional fuzzy \\ control strategy};
+  \node[algo] (afcs) at (6.00, -9.0)    {Adaptive fuzzy \\ control strategy};
+  \node[algo] (pfcs) at (1.00, -10.5)   {Predictive fuzzy \\ control strategy};
+
+  % Optimisation Leaves (Two columns flanking the 13.5 spine)
+  \node[algo] (pmp)  at (11.00, -7.5)   {Pontryagin's minimum \\ principle};
+  \node[algo] (ecms) at (16.00, -7.5)   {Equivalent consumption \\ minimisation strategy};
+  \node[algo] (scs)  at (11.00, -9.0)   {Stochastic control \\ strategy};
+  \node[algo] (mpc)  at (16.00, -9.0)   {Model predictive \\ control strategy};
+
+  % Highlighted ANN Node
+  \node[algohl] (ann)  at (11.00, -10.5)  {Artificial neural \\ network};
+
+  % ==========================================
+  % 3. HIERARCHICAL CONNECTIONS (Top-Down)
+  % ==========================================
+
+  % Root -> Offline & Online
+  \path (root.south) -- (root.south |- offline.north) coordinate[midway] (fork1);
+  \draw[thick] (root.south) -- (fork1);
+  \draw[splitline] (fork1) -| (offline.north);
+  \draw[splitline] (fork1) -| (online.north);
+
+  % Online -> Rule-based & Optimisation
+  \path (online.south) -- (online.south |- rule.north) coordinate[midway] (fork2);
+  \draw[thick] (online.south) -- (fork2);
+  \draw[splitline] (fork2) -| (rule.north);
+  \draw[splitline] (fork2) -| (opt.north);
+
+  % Rule-based -> Deterministic & Fuzzy
+  \path (rule.south) -- (rule.south |- fuz.north) coordinate[midway] (fork3);
+  \draw[thick] (rule.south) -- (fork3);
+  \draw[splitline] (fork3) -| (det.north);
+  \draw[splitline] (fork3) -| (fuz.north);
+
+  % ==========================================
+  % 4. SPINE & SIDE-BRANCH CONNECTIONS
+  % ==========================================
+
+  % Offline Spine & Branches
+  \draw[trunk] (offline.south) -- (offline.south |- ga.east);
+  \draw[branch] (offline.south |- lp.east)  -- (lp.east);
+  \draw[branch] (offline.south |- dp.west)  -- (dp.west);
+  \draw[branch] (offline.south |- ga.east)  -- (ga.east);
+  \draw[branch] (offline.south |- pso.west) -- (pso.west);
+
+  % Fuzzy Spine & Branches
+  \draw[trunk] (fuz.south) -- (fuz.south |- pfcs.east);
+  \draw[branch] (fuz.south |- tfcs.east) -- (tfcs.east);
+  \draw[branch] (fuz.south |- afcs.west) -- (afcs.west);
+  \draw[branch] (fuz.south |- pfcs.east) -- (pfcs.east);
+
+  % Optimisation Spine & Branches
+  \draw[trunk] (opt.south) -- (opt.south |- ann.east);
+  \draw[branch] (opt.south |- pmp.east)  -- (pmp.east);
+  \draw[branch] (opt.south |- ecms.west) -- (ecms.west);
+  \draw[branch] (opt.south |- scs.east)  -- (scs.east);
+  \draw[branch] (opt.south |- mpc.west)  -- (mpc.west);
+  \draw[branch] (opt.south |- ann.east)  -- (ann.east);
+
+\end{tikzpicture}
+\end{document}

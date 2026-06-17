@@ -1,0 +1,139 @@
+\documentclass[tikz,border=10pt]{standalone}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta, positioning, calc}
+
+\begin{document}
+% Custom colours sampled from the image
+\definecolor{catborder}{HTML}{000000}
+\definecolor{algborder}{HTML}{7A9DBC}
+\definecolor{hlfill}{HTML}{D9E6F5}
+
+\begin{tikzpicture}[
+    % y=0.95cm, % <--- You can now adjust this freely!
+    font=\sffamily,
+    >=Latex,
+    % Styles for the category boxes
+    category/.style={
+      rectangle, rounded corners=8pt, draw=catborder, thick,
+      fill=white, minimum width=4.0cm, minimum height=1.2cm,
+      align=center, font=\normalsize
+    },
+    % Styles for the algorithm boxes
+    algo/.style={
+      rectangle, rounded corners=4pt, draw=algborder, thick,
+      fill=white, minimum width=3.4cm, minimum height=0.9cm,
+      align=center, font=\normalsize
+    },
+    algohl/.style={
+      algo, fill=hlfill
+    },
+    trunk/.style={thick},
+    branch/.style={->, thick}
+  ]
+
+  % ---------------------------------------------------------
+  % 1. CATEGORY NODES
+  % ---------------------------------------------------------
+  \node[category] (rl)  at (0.75, 0)     {RL Algorithms};
+
+  \node[category] (mf)  at (-4.5, -2.2)  {Model-Free RL};
+  \node[category] (mb)  at (6.0, -2.2)   {Model-Based RL};
+
+  \node[category] (po)  at (-7.0, -4.4)  {Policy Optimisation};
+  \node[category] (ql)  at (-2.0, -4.4)  {Q-Learning};
+
+  \node[category] (ltm) at (3.5, -4.4)   {Learn the Model};
+  \node[category] (gtm) at (8.5, -4.4)   {Given the Model};
+
+  % ---------------------------------------------------------
+  % 2. ALGORITHM NODES
+  % ---------------------------------------------------------
+  % Col 1: Under Policy Optimisation (Left)
+  \node[algo]   (pg)   at (-10.0, -6.2)  {Policy Gradient};
+  \node[algo]   (a2c)  at (-10.0, -7.8)  {A2C / A3C};
+  \node[algohl] (ppo)  at (-10.0, -9.4)  {PPO};
+  \node[algo]   (trpo) at (-10.0, -11.0) {TRPO};
+
+  % Col 3: Shared between Policy Optimisation and Q-Learning
+  \node[algo]   (ddpg) at (-4.5, -7.0)   {DDPG};
+  \node[algohl] (td3)  at (-4.5, -8.6)   {TD3};
+  \node[algohl] (sac)  at (-4.5, -10.2)  {SAC};
+
+  % Col 5: Under Q-Learning (Right)
+  \node[algo]   (dqn)  at (1.0, -6.2)    {DQN};
+  \node[algo]   (c51)  at (1.0, -7.8)    {C51};
+  \node[algo]   (qr)   at (1.0, -9.4)    {QR-DQN};
+  \node[algo]   (her)  at (1.0, -11.0)   {HER};
+
+  % Col 7: Under Learn the Model (Right)
+  \node[algo]   (wm)   at (6.5, -6.2)    {World Models};
+  \node[algo]   (i2a)  at (6.5, -7.8)    {I2A};
+  \node[algo]   (mbmf) at (6.5, -9.4)    {MBMF};
+  \node[algo]   (mbve) at (6.5, -11.0)   {MBVE};
+
+  % Col 9: Under Given the Model (Right)
+  \node[algo]   (az)   at (11.5, -7.0)   {AlphaZero};
+
+  % ---------------------------------------------------------
+  % 3. CONNECTIONS (Now 100% Dynamic)
+  % ---------------------------------------------------------
+
+  \tikzset{splitline/.style={->, thick, rounded corners=6pt}}
+
+  % Top Level Splits
+  % Calculates exactly the halfway point between row 1 and row 2
+  \path (rl.south) -- (rl.south |- mf.north) coordinate[midway] (fork1);
+  \draw[thick] (rl.south) -- (fork1);
+  \draw[splitline] (fork1) -| (mf.north);
+  \draw[splitline] (fork1) -| (mb.north);
+
+  % Mid Level Splits
+  \path (mf.south) -- (mf.south |- po.north) coordinate[midway] (fork2);
+  \draw[thick] (mf.south) -- (fork2);
+  \draw[splitline] (fork2) -| (po.north);
+  \draw[splitline] (fork2) -| (ql.north);
+
+  \path (mb.south) -- (mb.south |- ltm.north) coordinate[midway] (fork3);
+  \draw[thick] (mb.south) -- (fork3);
+  \draw[splitline] (fork3) -| (ltm.north);
+  \draw[splitline] (fork3) -| (gtm.north);
+
+  % --- Spines (Vertical Trunks) ---
+  % Spines now draw automatically to the exact height of the lowest node they serve
+  \draw[trunk] (po.south)  -- (po.south |- trpo.east);
+  \draw[trunk] (ql.south)  -- (ql.south |- her.west);
+  \draw[trunk] (ltm.south) -- (ltm.south |- mbve.west);
+  \draw[trunk] (gtm.south) -- (gtm.south |- az.west);
+
+  % --- Branches (Horizontal Connections) ---
+  % They automatically trace from the spine to the side of the node
+
+  % Policy Optimisation
+  \draw[branch] (po.south |- pg.east)   -- (pg.east);
+  \draw[branch] (po.south |- ddpg.west) -- (ddpg.west);
+  \draw[branch] (po.south |- a2c.east)  -- (a2c.east);
+  \draw[branch] (po.south |- td3.west)  -- (td3.west);
+  \draw[branch] (po.south |- ppo.east)  -- (ppo.east);
+  \draw[branch] (po.south |- sac.west)  -- (sac.west);
+  \draw[branch] (po.south |- trpo.east) -- (trpo.east);
+
+  % Q-Learning
+  \draw[branch] (ql.south |- dqn.west)  -- (dqn.west);
+  \draw[branch] (ql.south |- ddpg.east) -- (ddpg.east);
+  \draw[branch] (ql.south |- c51.west)  -- (c51.west);
+  \draw[branch] (ql.south |- td3.east)  -- (td3.east);
+  \draw[branch] (ql.south |- qr.west)   -- (qr.west);
+  \draw[branch] (ql.south |- sac.east)  -- (sac.east);
+  \draw[branch] (ql.south |- her.west)  -- (her.west);
+
+  % Learn the Model
+  \draw[branch] (ltm.south |- wm.west)   -- (wm.west);
+  \draw[branch] (ltm.south |- i2a.west)  -- (i2a.west);
+  \draw[branch] (ltm.south |- mbmf.west) -- (mbmf.west);
+  \draw[branch] (ltm.south |- mbve.west) -- (mbve.west);
+
+  % Given the Model
+  \draw[branch] (gtm.south |- az.west)   -- (az.west);
+
+\end{tikzpicture}
+\end{document}

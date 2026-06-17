@@ -1,0 +1,72 @@
+\documentclass[tikz,border=10pt]{standalone}
+\usepackage{tikz}
+\usetikzlibrary{shapes.geometric, arrows.meta, positioning, fit, backgrounds, calc}
+
+\begin{document}
+% Define colours from Mermaid theme
+\definecolor{primarybg}{HTML}{E6F3FF}
+\definecolor{primaryborder}{HTML}{000000}
+\definecolor{phasebg}{HTML}{EEEEFF}
+\definecolor{phaseborder}{HTML}{555577}
+\definecolor{termbg}{HTML}{EEFFEE}
+\definecolor{termborder}{HTML}{557755}
+
+\begin{tikzpicture}[
+    font=\sffamily,
+    >=Latex,
+    % Node Styles
+    terminal/.style={rectangle, rounded corners=15pt, draw=termborder, fill=termbg, thick, align=center, text width=4.2cm, minimum height=1.5cm, inner sep=8pt},
+    process/.style={rectangle, rounded corners=3pt, draw=primaryborder, fill=primarybg, thick, align=center, text width=3.8cm, minimum height=1.5cm, inner sep=8pt},
+    phasebox/.style={rectangle, rounded corners=8pt, draw=phaseborder, thick, fill=phasebg, fill opacity=0.4, dashed}
+  ]
+
+  % Start Node
+  \node[terminal] (start) {HEV control problem:\\track speed + reduce NOx};
+
+  % Phase 1 Nodes
+  \node[process, right=2cm of start] (p1train) {Train PPO, TD3, SAC\\reward: speed tracking only};
+  \node[process, right=0.8cm of p1train] (p1eval) {Evaluate on\\standardised cycle};
+  \node[process, right=0.8cm of p1eval] (p1base) {Record uncontrolled baselines:\\NOx emissions + SOC drift};
+  \node[process, right=0.8cm of p1base] (p1best) {Select best speed-tracking\\policy per algorithm};
+
+  % Phase 2 Nodes
+  \node[process, below=3.5cm of p1train] (p2init) {Warm-start from\\Phase 1 policy};
+  \node[process, right=0.8cm of p2init] (p2reward) {Activate NOx +\\SOC reward terms};
+  \node[process, right=0.8cm of p2reward] (p2tune) {Tune objective\\trade-off};
+  \node[process, right=0.8cm of p2tune] (p2eval) {Evaluate on\\same cycle};
+
+  % Result Node
+  \node[terminal, right=2cm of p2eval] (result) {Charge-sustaining,\\low-emission controller};
+
+  % Draw Background Boxes for Subgraphs
+  \begin{scope}[on background layer]
+    % Phase 1 Box
+    \node[phasebox, fit=(p1train) (p1best), inner ysep=25pt, inner xsep=15pt] (P1) {};
+    \node[anchor=north, font=\bfseries, text=black, inner xsep=15pt, inner ysep=10pt] at (P1.north) {Phase 1 --- Speed Tracking Only};
+
+    % Phase 2 Box
+    \node[phasebox, fit=(p2init) (p2eval), inner ysep=25pt, inner xsep=15pt] (P2) {};
+    \node[anchor=north, font=\bfseries, text=black, inner xsep=15pt, inner ysep=10pt] at (P2.north) {Phase 2 --- Multi-Objective Optimisation};
+  \end{scope}
+
+  % Main Flow Edges
+  \draw[->, thick] (start) -- (P1.west |- p1train);
+  \draw[->, thick] (P2.east |- p2eval) -- (result);
+
+  % Phase 1 Internal Edges
+  \draw[->, thick] (p1train) -- (p1eval);
+  \draw[->, thick] (p1eval) -- (p1base);
+  \draw[->, thick] (p1base) -- (p1best);
+
+  % Phase 2 Internal Edges
+  \draw[->, thick] (p2init) -- (p2reward);
+  \draw[->, thick] (p2reward) -- (p2tune);
+  \draw[->, thick] (p2tune) -- (p2eval);
+
+  % Cross-Phase Linking Edges
+  \draw[->, thick, rounded corners=5pt] (p1best.south) -- ++(0,-1.5) -| node[pos=0.25, above, font=\small\sffamily] {transfer best checkpoint} (p2init.north);
+
+  \draw[->, thick, dashed] (p1base.south) -- node[midway, pos=0.6, right=3pt, font=\small\sffamily, align=left] {baselines to beat} (p2eval.north west);
+
+\end{tikzpicture}
+\end{document}
