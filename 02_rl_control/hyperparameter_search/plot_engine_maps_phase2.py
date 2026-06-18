@@ -514,6 +514,32 @@ def main():
         mark_extreme="max",
     )
 
+    # Standalone single-phase BSFC occupancy maps (clean phase-2 style: halo
+    # density contour + median X, no raw operating-point scatter). The phase-1
+    # version replaces the scatter-haze BSFC overlay from plot_pareto_behaviour.
+    plot_single(
+        emap,
+        "bsfc",
+        "BSFC (g/kWh) — lower = more efficient",
+        "viridis_r",
+        os.path.join(p1_out, "engine_map_bsfc_occupancy.png"),
+        args.phase1_logs,
+        args.phase1_subpath,
+        "Phase-1",
+        mark_extreme="min",
+    )
+    plot_single(
+        emap,
+        "bsfc",
+        "BSFC (g/kWh) — lower = more efficient",
+        "viridis_r",
+        os.path.join(args.out_dir, "engine_map_bsfc_occupancy.png"),
+        args.phase2_logs,
+        args.phase2_subpath,
+        "Phase-2",
+        mark_extreme="min",
+    )
+
 
 if __name__ == "__main__":
     main()
