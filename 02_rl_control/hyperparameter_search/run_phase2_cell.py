@@ -32,7 +32,7 @@ sys.path.insert(0, rl_control_dir)
 sys.path.insert(0, models_dir)
 sys.path.insert(0, current_dir)
 from env import EmissionControlEnv
-from env_thermal import EmissionControlEnvThermal
+from misc.env_thermal import EmissionControlEnvThermal
 from models.eval import evaluate_model
 from utils.config_utils import load_config
 from utils.checkpoint_utils import VecNormalizeCheckpointCallback

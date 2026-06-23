@@ -16,7 +16,7 @@
 # this single job.
 #
 # Submit:
-#   sbatch 02_rl_control/hyperparameter_search/submit_phase2_hpo_rerun_td3.sh
+#   sbatch 02_rl_control/bash_scripts/submit_phase2_hpo_rerun_td3.sh
 #
 # Note: --requeue means SLURM auto-resubmits if the job dies with NODE_FAIL.
 # ============================================================================

@@ -26,10 +26,10 @@ done
 # Resolve paths
 # ---------------------------------------------------------------------------
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_DIR="$SCRIPT_DIR"
+REPO_DIR="$(dirname "$SCRIPT_DIR")"   # bash_scripts/ lives inside the repo root
 REPO_NAME="$(basename "$REPO_DIR")"   # 02_rl_control
 
-CONFIG_FILE="${CONFIG_FILE:-$SCRIPT_DIR/.transfer_config}"
+CONFIG_FILE="${CONFIG_FILE:-$REPO_DIR/.transfer_config}"
 if [ ! -f "$CONFIG_FILE" ]; then
     echo "Error: config file not found: $CONFIG_FILE"
     exit 1

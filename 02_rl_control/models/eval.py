@@ -27,7 +27,7 @@ sys.path.append(os.path.dirname(current_dir))
 sys.path.append(current_dir)
 
 from env import EmissionControlEnv
-from env_thermal import EmissionControlEnvThermal
+from misc.env_thermal import EmissionControlEnvThermal
 from plotting import (
     plot_evaluation,
     plot_actions,

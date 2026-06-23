@@ -1,0 +1,255 @@
+% \documentclass[a4paper,11pt]{article}
+\documentclass[parskip=half, fontsize=11pt]{report}
+% \documentclass[parskip=half, fontsize=11pt]{scrartcl}
+\usepackage[utf8]{inputenc}
+\usepackage[english]{babel}
+\usepackage{graphicx}
+\usepackage{tikz}
+\usetikzlibrary{shapes.geometric, arrows.meta, positioning, fit, backgrounds, calc}
+\usepackage{standalone}
+\usepackage{pdfpages}
+\usepackage{caption}
+\DeclareCaptionFont{tenpt}{\fontsize{10pt}{12pt}\selectfont}
+\captionsetup{font=tenpt}
+\usepackage{subcaption}
+\usepackage{tabularx}
+\usepackage{enumitem}
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{listings}
+\usepackage[hypertexnames=false]{hyperref}
+\usepackage{float}
+\usepackage{color, soul}
+\usepackage{geometry}
+\usepackage{booktabs}
+\usepackage{csquotes}
+\usepackage{longtable}
+\usepackage{wrapfig}
+\usepackage{booktabs} % For better rules (lines) in tables
+\usepackage{array}    % For m{} column type (vertically centered) and >{\raggedright\arraybackslash}
+\usepackage{geometry} % To adjust margins for a potentially wide table
+\usepackage[nohyperlinks]{acronym}
+\usepackage{etoolbox}
+\usepackage{fancyhdr}
+\usepackage{svg}
+\usepackage[
+  backend=biber,
+  style=ieee,
+  sorting=none,
+  doi=true,
+  url=true,
+  isbn=false
+]{biblatex}
+\addbibresource{master_thesis.bib}
+
+\pagestyle{fancy}
+
+% custom commands
+\newcommand{\note}[1]{\hl{#1}\newline}
+\renewcommand*{\chapterautorefname}{Chapter}
+\newcommand{\chapterref}[1]{Chapter~\ref{#1}~(\nameref{#1})}
+\newcommand{\Chapteronlyref}[1]{\hyperref[#1]{Chapter~\ref*{#1}}}
+\newcommand{\chapteronlyref}[1]{\hyperref[#1]{chapter~\ref*{#1}}}
+\newcommand{\frontmatterchapterheading}[1]{%
+  \phantomsection
+  \addcontentsline{toc}{chapter}{#1}
+  \markboth{}{}
+  \thispagestyle{empty}
+  \vspace*{50pt}
+  \begin{center}
+    \normalfont\Huge\bfseries #1
+  \end{center}
+  \vspace{2em}
+}
+\newcommand{\frontmatterchapterpage}[1]{%
+  \frontmatterchapterheading{#1}
+  \newpage
+}
+\pretocmd{\chapter}{\acresetall}{}{}
+\renewcommand{\chaptermark}[1]{\markboth{\thechapter\ #1}{}}
+\renewcommand{\sectionmark}[1]{\markright{\thesection\ #1}}
+
+\makeatletter
+\newcommand{\singlemarkchapterlist}[1]{%
+  \begingroup
+    \def\@mkboth##1##2{\markboth{##1}{}}%
+    #1%
+  \endgroup
+}
+\makeatother
+
+\defbibheading{singlemarkbibliography}[\bibname]{%
+  \chapter*{#1}%
+  \markboth{#1}{}%
+}
+
+\fancyhead[L]{\nouppercase{\leftmark}}
+\fancyhead[R]{\nouppercase{\rightmark}}
+\fancyfoot[C]{\thepage}
+
+% \setlength{\headwidth}{\textwidth}
+
+% Page layout
+% \geometry{
+%   left=27mm,
+%   right=27mm,
+%   top=27mm,
+%   bottom=27mm,
+% }
+
+\begin{document}
+
+\includepdf[pages=1]{prism-uploads/portada.pdf}
+
+% % Source - https://tex.stackexchange.com/a/42163
+% % Posted by Martigan, modified by community. See post 'Timeline' for change history
+% % Retrieved 2026-06-01, License - CC BY-SA 3.0
+
+% \setcounter{secnumdepth}{3}
+
+\pagenumbering{roman}
+\setcounter{page}{1}
+
+\begingroup
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0.75em}
+
+\frontmatterchapterheading{Abstract}
+
+This thesis investigates reinforcement-learning-based control strategies for reducing tailpipe \ac{NOx} emissions in a light-duty hybrid diesel vehicle. The work addresses the multi-objective nature of hybrid-electric-vehicle energy management, where speed tracking, emission reduction, battery charge sustainment, and real-time feasibility must be balanced. During training, the controller interacts with a long short-term memory surrogate environment of the vehicle and emission behaviour instead of computationally expensive physical simulations.
+
+The methodology follows a two-stage training and evaluation pipeline. First, \ac{PPO}, \ac{TD3}, and \ac{SAC} are trained for speed tracking to establish stable baseline policies. Their hyperparameters are selected with Optuna and validated across ten random seeds per algorithm. Second, the selected checkpoints are fine-tuned with additional reward terms for \ac{NOx} reduction and charge sustainment. The resulting policies are evaluated on a synthetic staircase cycle, analysed through their engine operating points, and tested zero-shot on the WLTC against a rule-based benchmark controller.
+
+The results show that all three algorithms learn speed tracking, but differ once emission and battery objectives are introduced. \ac{PPO} provides the most robust multi-objective fine-tuning, \ac{SAC} achieves the strongest emission reduction, and \ac{TD3} is limited by training instability. In the WLTC comparison, the best \ac{SAC} seed reaches 80\,mg/km tailpipe \ac{NOx}, compared with 147\,mg/km for the rule-based controller, while also improving speed tracking and maintaining charge sustainment. This improvement comes at the cost of higher fuel consumption, highlighting the remaining trade-off between pollutant reduction and energy efficiency.
+
+Overall, the thesis demonstrates that staged reinforcement learning can produce emission-aware hybrid-vehicle control policies in a surrogate environment and transfer meaningful behaviour to an unseen driving cycle. The results also underline the importance of seed-wise policy selection, explicit fuel objectives, and future validation in a real vehicle or high-fidelity simulation environment.
+
+The full implementation is publicly available on \href{https://github.com/nikilong2000/rl_emission_reduction}{GitHub}.
+
+\vspace{1em}
+
+\textbf{Keywords:} Hybrid Electric Vehicle (HEV), Energy Management System (EMS), Deep Reinforcement Learning (DRL), Multi-Objective Optimisation, Curriculum Learning, \ac{NOx} Emission Reduction, Charge Sustainment, Surrogate Models
+
+\newpage
+\frontmatterchapterheading{Acknowledgements}
+
+I would like to express my sincere gratitude to everyone who contributed to this work.
+
+First and foremost, I would like to thank Cecilio Angulo Bahón for welcoming me into this project, guiding my research, and helping me resolve the many questions I encountered along the way.
+I gratefully acknowledge the INIREC grant, which supported this work and enabled me to dedicate the necessary time and effort to it. I also thank Markus Frey, who was always available for questions and whose feedback gave me confidence in my work, and Marcial Francisco Mosqueda Otero for his excellent work in making the surrogate models more efficient.
+
+I am grateful for the opportunity to have contributed to a sustainability-focused project as my first substantial contribution to the field of AI.
+
+Finally, I would like to thank my wonderful friends in Berlin and Barcelona for always being there for me and making my life as beautiful as it is. A special appreciation goes to Sheena, my loyal library partner.
+\endgroup
+
+\newpage
+\setcounter{page}{3}
+
+\singlemarkchapterlist{\tableofcontents} \newpage
+\phantomsection
+\addcontentsline{toc}{chapter}{List of Figures}
+\singlemarkchapterlist{\listoffigures} \newpage
+\markboth{}{}
+\phantomsection
+\addcontentsline{toc}{chapter}{List of Tables}
+\singlemarkchapterlist{\listoftables} \newpage
+\markboth{}{}
+
+\chapter*{List of Abbreviations and Acronyms}
+\markboth{List of Abbreviations and Acronyms}{}
+\addcontentsline{toc}{chapter}{List of Abbreviations}
+\begin{acronym}[LDCI2027  ]
+  \acro{ACC}{Adaptive Cruise Control}
+  \acro{AI}{Artificial Intelligence}
+  \acro{ANN}{Artificial Neural Network}
+  \acro{BSFC}{Brake-Specific Fuel Consumption}
+  \acro{DP}{Dynamic Programming}
+  \acro{DDPG}{Deep Deterministic Policy Gradient}
+  \acro{DRL}{Deep Reinforcement Learning}
+  \acro{DOC}{Diesel Oxidation Catalyst}
+  \acro{DPF}{Diesel Particulate Filter}
+  \acro{EAT}{Exhaust Gas Aftertreatment}
+  \acro{ECMS}{Equivalent Consumption Minimisation Strategy}
+  \acro{EM}{Electric Motor}
+  \acro{EM1}{Electric Motor 1}
+  \acro{EM2}{Electric Motor 2}
+  \acro{EMS}{Energy Management System}
+  \acro{FVV}{Forschungsvereinigung Verbrennungskraftmaschinen}
+  \acro{HEV}{Hybrid Electric Vehicle}
+  \acro{HPO}{Hyperparameter Optimisation}
+  \acro{ICE}{Internal Combustion Engine}
+  \acro{IDEAI}{Intelligent Data Science and Artificial Intelligence}
+  \acro{IFS}{Institute of Automotive Engineering Stuttgart}
+  \acro{LDCI2027}{Light-Duty CI-ICE 2027}
+  \acro{LSTM}{Long Short-Term Memory}
+  \acro{MAE}{Mean Absolute Error}
+  \acro{MDP}{Markov Decision Process}
+  \acro{MLP}{Multilayer Perceptron}
+  \acro{MPC}{Model Predictive Control}
+  \acro{NN}{Neural Network}
+  \acro{NOx}[NO\textsubscript{x}]{Nitrogen Oxides}
+  \acro{POMDP}{Partially Observable Markov Decision Process}
+  \acro{PPO}{Proximal Policy Optimisation}
+  \acro{RL}{Reinforcement Learning}
+  \acro{RMSE}{Root Mean Square Error}
+  \acro{RNN}{Recurrent Neural Network}
+  \acro{SAC}{Soft Actor-Critic}
+  \acro{SCR}{Selective Catalytic Reduction}
+  \acro{SGD}{Stochastic Gradient Descent}
+  \acro{SOC}{State of Charge}
+  \acro{TD3}{Twin Delayed Deep Deterministic Policy Gradient}
+  \acro{TPE}{Tree-structured Parzen Estimator}
+  \acro{TRPO}{Trust Region Policy Optimisation}
+  \acro{TU}{Technische Universität}
+  \acro{UPC}{Universitat Politècnica de Catalunya}
+  \acro{WLTC}{Worldwide Harmonised Light Vehicles Test Cycle}
+\end{acronym}
+\newpage
+
+\chapter*{List of Symbols}
+\markboth{}{}
+\addcontentsline{toc}{chapter}{List of Symbols}
+\begingroup
+%\small
+\begin{longtable}{@{}p{0.15\textwidth}p{0.30\textwidth}p{0.16\textwidth}p{0.31\textwidth}@{}}
+  \toprule
+  \textbf{Symbol} & \textbf{Description} & \textbf{Unit} & \textbf{Context} \\
+  \midrule
+  $v_{\mathrm{target}}$ & Reference vehicle velocity & km/h & RL observation \\
+  $v_{Car}$ & Actual vehicle velocity & km/h & Drivetrain output \\
+  $n_{ICE}$ & ICE speed & rpm & Control input / model input \\
+  $m_{fuel}$ & Fuel mass & mg/cyl/cycle & Control input / ICE input \\
+  $\tau_{ICE}$ & ICE torque & Nm & ICE output / drivetrain input \\
+  $\tau_{EM2}$ & EM2 torque & Nm & Control input / drivetrain input \\
+  \texttt{Brakemech} & Mechanical brake command & \% & Control input / drivetrain input \\
+  $SoC$ & Battery state of charge & -- & Drivetrain output / RL observation \\
+  $\dot m_{\mathrm{NO}_{x},\mathrm{tp}}$ & Tailpipe NOx mass-flow rate & g/s & ICE output / RL observation \\
+  $M_{\mathrm{NO}_{x},\mathrm{tp}}^{\mathrm{eval}}$ & Cumulative tailpipe NOx mass over an evaluation cycle & g & Evaluation metric / Phase~2 objective \\
+  $T_{amb}$ & Ambient temperature & K & ICE boundary input \\
+  $p_{amb}$ & Ambient pressure & bar & ICE boundary input \\
+  \bottomrule
+\end{longtable}
+\endgroup
+
+\newpage
+
+\pagenumbering{arabic}
+\setcounter{page}{1}
+
+\input{src/01_introduction} \newpage
+\input{src/02_theory} \newpage
+\input{src/029_related_work} \newpage
+\input{src/03_methodology} \newpage
+\input{src/04_implementation} \newpage
+\input{src/05_results} \newpage
+\input{src/06_discussion} \newpage
+\input{src/07_conclusion} \newpage
+
+\appendix
+\input{appendix} \newpage
+
+\pagenumbering{roman}
+\setcounter{page}{2}
+\printbibliography[heading=singlemarkbibliography]
+\end{document}

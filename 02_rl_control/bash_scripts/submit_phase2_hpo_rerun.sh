@@ -18,11 +18,11 @@
 # resampling, so the exact same configuration is run.
 #
 # Submit examples:
-#   sbatch --export=ALL,ALGORITHM=ppo,TRIAL=1 submit_phase2_hpo_rerun.sh
-#   sbatch --export=ALL,ALGORITHM=sac,TRIAL=3,MARK_FAILED=1 submit_phase2_hpo_rerun.sh
-#   sbatch --export=ALL,ALGORITHM=td3,AUTO=1,MARK_FAILED=1 submit_phase2_hpo_rerun.sh
+#   sbatch --export=ALL,ALGORITHM=ppo,TRIAL=1 02_rl_control/bash_scripts/submit_phase2_hpo_rerun.sh
+#   sbatch --export=ALL,ALGORITHM=sac,TRIAL=3,MARK_FAILED=1 02_rl_control/bash_scripts/submit_phase2_hpo_rerun.sh
+#   sbatch --export=ALL,ALGORITHM=td3,AUTO=1,MARK_FAILED=1 02_rl_control/bash_scripts/submit_phase2_hpo_rerun.sh
 #
-# Or edit the variables below and `sbatch submit_phase2_hpo_rerun.sh`.
+# Or edit the variables below and `sbatch 02_rl_control/bash_scripts/submit_phase2_hpo_rerun.sh`.
 # ============================================================================
 CONDA_ENV="${CONDA_DEFAULT_ENV:-none}"
 if [ "$CONDA_ENV" = "none" ]; then

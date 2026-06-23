@@ -9,10 +9,10 @@ Features:
 - CSV export for step history
 
 Usage examples:
-    python 02_rl_control/manual_controller.py
-    python 02_rl_control/manual_controller.py --algorithm sac
-    python 02_rl_control/manual_controller.py --dataset_path 02_rl_control/data_train/WLTC.csv
-    python 02_rl_control/manual_controller.py --fixed_target_speed 100
+    python 02_rl_control/misc/manual_controller.py
+    python 02_rl_control/misc/manual_controller.py --algorithm sac
+    python 02_rl_control/misc/manual_controller.py --dataset_path 02_rl_control/data_train/WLTC.csv
+    python 02_rl_control/misc/manual_controller.py --fixed_target_speed 100
 """
 
 import argparse
@@ -30,10 +30,11 @@ from tkinter import filedialog, messagebox, ttk
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
 
-current_dir = os.path.dirname(os.path.abspath(__file__))
+current_dir = os.path.dirname(os.path.abspath(__file__))   # 02_rl_control/misc
+rl_control_dir = os.path.dirname(current_dir)              # 02_rl_control (holds env.py, utils/, models/)
 sys.path.append(current_dir)
-sys.path.append(os.path.dirname(current_dir))
-models_dir = os.path.join(current_dir, "models")
+sys.path.append(rl_control_dir)
+models_dir = os.path.join(rl_control_dir, "models")
 sys.path.append(models_dir)
 
 from env import EmissionControlEnv

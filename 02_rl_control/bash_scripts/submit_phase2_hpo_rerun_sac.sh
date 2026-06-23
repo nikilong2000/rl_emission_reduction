@@ -16,7 +16,7 @@
 # this single job.
 #
 # Submit:
-#   sbatch 02_rl_control/hyperparameter_search/submit_phase2_hpo_rerun_sac.sh
+#   sbatch 02_rl_control/bash_scripts/submit_phase2_hpo_rerun_sac.sh
 #
 # Note: --requeue means SLURM auto-resubmits if the job dies with NODE_FAIL.
 # To disable nodelist constraint, leave it unset. If you want specific nodes,

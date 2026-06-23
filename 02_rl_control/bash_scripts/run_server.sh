@@ -14,7 +14,7 @@
 #   pip install "nvidia-cuda-nvcc-cu12==12.8.*"
 #
 # Usage:
-#   bash 02_rl_control/run_server.sh [--continue_from <path/to/model.zip>]
+#   bash 02_rl_control/bash_scripts/run_server.sh [--continue_from <path/to/model.zip>]
 # ─────────────────────────────────────────────────────────────────────────────
 
 VENV="/home/usuaris.new/niklas.long.schiefelbein/environments/.venv_py312_tf218"
@@ -29,5 +29,6 @@ fi
 export PATH="$PTXAS_DIR:$PATH"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_DIR="$(dirname "$SCRIPT_DIR")"   # bash_scripts/ lives inside the repo root
 # LSTMs (TF/Keras) run on GPU; PPO agent (SB3/PyTorch) runs on CPU
-exec "$VENV/bin/python" "$SCRIPT_DIR/models/ppo/train_ppo.py" --agent_device cpu "$@"
+exec "$VENV/bin/python" "$REPO_DIR/models/ppo/train_ppo.py" --agent_device cpu "$@"

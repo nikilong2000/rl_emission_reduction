@@ -3,11 +3,13 @@ import pandas as pd
 import glob
 
 # Paths
-CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
-PROJECT_ROOT = os.path.abspath(os.path.join(CURRENT_DIR, ".."))
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))            # 02_rl_control/misc
+RL_CONTROL_DIR = os.path.dirname(CURRENT_DIR)                       # 02_rl_control
+# internal_lstm_models lives one level above 02_rl_control (in code/)
+PROJECT_ROOT = os.path.abspath(os.path.join(CURRENT_DIR, "..", ".."))
 TEST_CYCLES_DIR = os.path.join(PROJECT_ROOT, "internal_lstm_models/Test_Cycles")
 DRIVETRAIN_DIR = os.path.join(PROJECT_ROOT, "internal_lstm_models/Data_Drivetrain")
-OUTPUT_DIR = os.path.join(CURRENT_DIR, "data")
+OUTPUT_DIR = os.path.join(RL_CONTROL_DIR, "data")
 
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 

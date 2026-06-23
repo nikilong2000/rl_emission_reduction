@@ -41,7 +41,8 @@ done
 # Load config
 # ---------------------------------------------------------------------------
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-CONFIG_FILE="${CONFIG_FILE:-$SCRIPT_DIR/.transfer_config}"
+REPO_DIR="$(dirname "$SCRIPT_DIR")"   # bash_scripts/ lives inside the repo root
+CONFIG_FILE="${CONFIG_FILE:-$REPO_DIR/.transfer_config}"
 
 if [ ! -f "$CONFIG_FILE" ]; then
     echo "Error: config file not found: $CONFIG_FILE"
@@ -58,7 +59,7 @@ source "$CONFIG_FILE"
 : "${REMOTE_HOST:?'REMOTE_HOST not set in config'}"
 : "${REMOTE_BASE_DIR:?'REMOTE_BASE_DIR not set in config'}"
 
-LOCAL_BASE_DIR="${LOCAL_BASE_DIR:-$SCRIPT_DIR}"
+LOCAL_BASE_DIR="${LOCAL_BASE_DIR:-$REPO_DIR}"
 
 # ---------------------------------------------------------------------------
 # Validate source dir

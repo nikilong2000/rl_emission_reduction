@@ -13,7 +13,7 @@
 # Each array task trains one seed (0–9) with best_params.json, then runs
 # full evaluation.  After all tasks complete, run plot_seeds.py manually:
 #
-#   python 02_rl_control/hyperparameter_search/plot_seeds.py \
+#   python 02_rl_control/plotting_modules/plot_seeds.py \
 #       --results_dir 02_rl_control/logs/<ALGO>/optuna/seeds/ \
 #       --algorithm <ALGO>
 # ============================================================================

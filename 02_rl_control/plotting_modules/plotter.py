@@ -9,35 +9,35 @@ a single interactive matplotlib figure (zoom/pan + screenshot ready).
 Examples
 --------
 # All trials of PPO phase 1 optuna sweep
-python plotter.py logs_cluster_phase1/logs/ppo/optuna
+python plotting_modules/plotter.py logs_cluster_phase1/logs/ppo/optuna
 
 # Only trials 050..069
-python plotter.py logs_cluster_phase1/logs/ppo/optuna \
+python plotting_modules/plotter.py logs_cluster_phase1/logs/ppo/optuna \
     --include 'trial_05*' 'trial_06*'
 
 # Drop a noisy run
-python plotter.py logs_cluster_phase1/logs/ppo/optuna/seeds \
+python plotting_modules/plotter.py logs_cluster_phase1/logs/ppo/optuna/seeds \
     --exclude seed_3
 
 # Smoothing window of 50 episodes
-python plotter.py logs_cluster_phase1/logs/ppo/optuna --smooth 50
+python plotting_modules/plotter.py logs_cluster_phase1/logs/ppo/optuna --smooth 50
 
 # Compare mean ± std across algorithms (each dir holds seed_* subdirs)
-python plotter.py --compare \
+python plotting_modules/plotter.py --compare \
     logs_cluster_phase1/logs/ppo/optuna/seeds \
     logs_cluster_phase1/logs/sac/optuna/seeds \
     logs_cluster_phase1/logs/td3/optuna/seeds \
     --labels PPO SAC TD3 --smooth 30
 
 # Compare action distributions aggregated across all seeds per algorithm
-python plotter.py --compare-actions \
+python plotting_modules/plotter.py --compare-actions \
     logs_cluster_phase1/logs/ppo/optuna/seeds \
     logs_cluster_phase1/logs/sac/optuna/seeds \
     logs_cluster_phase1/logs/td3/optuna/seeds \
     --labels PPO SAC TD3
 
 # Time-series + distribution side-by-side for one run (5 rows x 2 cols)
-python plotter.py --actions-panel \
+python plotting_modules/plotter.py --actions-panel \
     logs_cluster_phase1/logs/ppo/optuna/seeds/seed_0
 """
 

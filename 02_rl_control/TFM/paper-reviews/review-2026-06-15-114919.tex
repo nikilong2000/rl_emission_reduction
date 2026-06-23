@@ -1,0 +1,233 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[margin=2.5cm]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[english]{babel}
+\usepackage{enumitem}
+\usepackage{amsmath}
+\usepackage{booktabs}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\hypersetup{colorlinks=true,linkcolor=blue,urlcolor=blue}
+
+\setlist[itemize]{leftmargin=*,itemsep=0.25em,topsep=0.25em}
+\setlist[enumerate]{leftmargin=*,itemsep=0.45em,topsep=0.35em}
+\newcommand{\loc}[1]{\textbf{Location:} #1\par}
+\newcommand{\problem}{\textbf{Problem:} }
+\newcommand{\why}{\textbf{Why it matters:} }
+\newcommand{\fix}{\textbf{Suggested fix:} }
+\newcommand{\snippet}[1]{\begin{quote}\small #1\end{quote}}
+
+\begin{document}
+
+\begin{center}
+  {\Large Technical and Editorial Review}\par
+  \vspace{0.3em}
+  {\large Master's thesis manuscript review}\par
+  \vspace{0.3em}
+  {Generated: 2026-06-15 11:49:19}\par
+\end{center}
+
+\section*{Overall assessment}
+
+The manuscript has a coherent technical story: a surrogate LSTM environment is wrapped as an RL task, Phase~1 establishes speed-tracking feasibility, Phase~2 adds NOx and SOC objectives, and a WLTC comparison tests zero-shot generalisation against a rule-based controller. The strongest parts are the staged methodology, the algorithm-by-algorithm result analysis, and the explicit discussion of simulation-to-reality limitations.
+
+The main issues to resolve before submission are not small stylistic edits. The conclusion is still a placeholder, several author notes and highlighted draft comments remain visible, and a few implementation-facing definitions are ambiguous or inconsistent. The most important technical fixes concern normalisation, SOC-drift reporting, notation/unit consistency, and claim calibration in the WLTC and Euro~6 comparisons.
+
+I explicitly checked the equations, implementation-facing formulas, result tables, appendix interface tables, symbol definitions, branch/sign conventions, and reference hygiene. The manuscript does not contain inverse-trigonometric or coordinate-transform formulas, so no arctangent/branch-convention issue was identified. The main implementation ambiguities are in normalisation, symbol/unit drift, and scalar objective definitions rather than in coordinate or branch conventions.
+
+\section*{Highest-priority fixes}
+
+\begin{enumerate}
+  \item Replace Chapter~8 with a real conclusion and remove all ``[MISSING]'' markers before submission.
+  \item Remove or resolve all visible \texttt{\textbackslash note\{...\}} and \texttt{\textbackslash hl\{...\}} draft comments in the compiled thesis.
+  \item Clarify the exact observation-normalisation pipeline: static min--max scaling, SB3 \texttt{VecNormalize}, reward normalisation, and the differences between PPO and off-policy agents.
+  \item Make SOC reporting consistent: distinguish signed final $\Delta\mathrm{SOC}$, absolute final drift $|\Delta\mathrm{SOC}|$, and peak drift $\max_t |\Delta\mathrm{SOC}_t|$.
+  \item Standardise the main symbols and units across the list of symbols, equations, action/observation tables, and appendix interfaces.
+  \item Calibrate the WLTC claims so that the selected SAC seed is not described as an overall environmental improvement when it still burns more fuel than the rule-based baseline.
+\end{enumerate}
+
+\section*{Technical and factual findings}
+
+\subsection*{T1. Observation normalisation is implementation-ambiguous}
+
+\loc{Methodology, source line 18; Implementation, lines 151--179 and 361--362.}
+\problem The text states that observation components are clipped and min--max normalised to $[0,1]$, but later says the environment is wrapped in \texttt{VecNormalize}, which maintains running observation and reward statistics. The same paragraph also says observations are normalised by \texttt{VecNormalize} ``based on the min-max values'', which is not how SB3 \texttt{VecNormalize} normally operates. A visible note also remains: ``what about the static scaling/ dynamic normalisation for on-/off policy?''
+
+\why This directly affects reproducibility and algorithm comparability. Static min--max scaling, running z-score normalisation, and reward normalisation have different effects, especially for off-policy replay buffers. If both static scaling and \texttt{VecNormalize} are applied, the effective policy input is not the one described in the observation table.
+
+\fix Add a precise pipeline statement, for example: (i) raw physical observation, (ii) clipping to Table~4.x bounds, (iii) static min--max scaling, (iv) optional SB3 \texttt{VecNormalize} observation statistics, with exact settings per algorithm. If \texttt{VecNormalize} is not used for observations, remove that claim. If it is used, state whether training/evaluation reloads frozen statistics and whether reward normalisation is PPO-only.
+
+\subsection*{T2. SOC-drift metric is inconsistent across methodology and results}
+
+\loc{Methodology, line 216; Results, Table~\texttt{tab:phase1\_summary}, lines 20--39; Phase~2 summary table, lines 318--336.}
+\problem The methodology says SOC drift is reported as ``the absolute difference between the initial and final SOC values.'' Phase~1 Table~\texttt{tab:phase1\_summary}, however, labels the row as signed $\Delta$SOC and reports signed means such as $+0.146$ for TD3. The text then notes that TD3 contains both battery-depleting and battery-saturating seeds, so a signed mean can hide the actual drift magnitude. Phase~2 switches to $|\Delta\mathrm{SOC}|$ and $\max|\Delta\mathrm{SOC}|$.
+
+\why A signed mean can understate charge-sustainment violations when positive and negative drifts cancel. This is central to the thesis because the main Phase~2 claim is charge-sustaining NOx reduction.
+
+\fix Define and report three distinct quantities consistently: signed final drift $\Delta\mathrm{SOC}_{\mathrm{final}}=\mathrm{SOC}_{T}-\mathrm{SOC}_0$, absolute final drift $|\Delta\mathrm{SOC}_{\mathrm{final}}|$, and peak drift $\max_t|\Delta\mathrm{SOC}_t|$. Use the same notation in Methodology, Tables~\texttt{tab:phase1\_summary}, \texttt{tab:phase2\_summary}, \texttt{tab:phase2\_headline}, and the discussion.
+
+\subsection*{T3. Main control symbols drift across sections and appendix tables}
+
+\loc{List of Symbols in \texttt{main.tex}; Methodology equation for RMSE, lines 210--213; Implementation reward definition, lines 228--236; Appendix model-interface tables, lines 12--30 and 44--49.}
+\problem Several high-use symbols have inconsistent forms or descriptors:
+\begin{itemize}
+  \item target speed appears as $v_{\mathrm{target}}$, $v_{\mathrm{target},t}$, and $v_{\text{ref},t}$;
+  \item actual speed appears as $v_{Car}$ and $v_t$;
+  \item battery state appears as $SoC$, $\mathrm{SOC}$, \texttt{SOC}, and $\Delta\text{SOC}$;
+  \item SCR wall temperature appears as $T_{\text{wall,SCR1}}$ in the observation table and $Twall_{SCR1}$ in the appendix.
+\end{itemize}
+
+\why This is an implementation-facing thesis. Symbol drift makes it harder to map equations to code, tables, and LSTM interfaces, and it can lead to errors when reproducing the environment or metrics.
+
+\fix Create a notation table for the environment and use it everywhere. For example, choose $v_{\mathrm{target},t}$ and $v_{\mathrm{car},t}$, define $\Delta v_t=v_{\mathrm{target},t}-v_{\mathrm{car},t}$, choose either $\mathrm{SOC}$ or $SoC$ as the sole math symbol, and rewrite appendix names either as code identifiers in \texttt{texttt} or as consistent math variables.
+
+\subsection*{T4. Fuel-mass units are not consistent enough for reproduction}
+
+\loc{List of Symbols in \texttt{main.tex}; Appendix line 13; Implementation action table, lines 196--199; validity ranges, lines 65--81; reward/action discussion, lines 206--215.}
+\problem The list of symbols and appendix define $m_{fuel}$ as mg/cyl/cycle, but several implementation tables and descriptions shorten this to mg or ``fuel mass per cycle.''
+
+\why Fuel injection units are part of the physical action interface and the ICE surrogate validity range. ``mg'', ``mg/cycle'', and ``mg/cyl/cycle'' are not interchangeable unless the cylinder/cycle convention is implicit and fixed.
+
+\fix Standardise the unit as ``mg/cyl/cycle'' wherever $m_{fuel}$ is an ICE input or action, or add one sentence stating that all fuel-mass commands are per cylinder per cycle and are abbreviated as mg in the remaining tables.
+
+\subsection*{T5. Phase~2 reward-weight notation is inconsistent}
+
+\loc{Implementation reward equation and table, lines 228--276; Phase~2 best-trial table in Results, lines 298--311.}
+\problem The reward uses $W_{\text{soc}^2}$ for the squared SOC penalty, but Table~\texttt{tab:phase2\_best\_trials} labels the selected weight as $W_{\text{soc}}$.
+
+\why This is a code-facing hyperparameter. A reader could reasonably interpret $W_{\text{soc}}$ as a linear SOC penalty, whereas the implementation uses the squared term.
+
+\fix Rename the table heading to $W_{\text{soc}^2}$ or define $W_{\text{soc}} \equiv W_{\text{soc}^2}$ explicitly. Prefer the former for consistency with Equation~\texttt{eq:reward} and Table~\texttt{tab:reward\_weights}.
+
+\subsection*{T6. Composite score $J$ adds quantities with implicit units}
+
+\loc{Implementation, Equations~\texttt{eq:phase2\_objective} and \texttt{eq:cumulative\_nox\_eval}, lines 401--430.}
+\problem The scalar objective is written as
+\[
+J=M_{\mathrm{NO}_{x},\mathrm{tp}}^{\mathrm{eval}}+\lambda_{\text{RMSE}}\max(0,\mathrm{RMSE}_v-r_{\text{RMSE}})^2+\lambda_{\text{SOC}}\max(0,\max_t|\Delta\mathrm{SOC}_t|-r_{\text{SOC}})^2.
+\]
+The first term is in grams, the second in $(\mathrm{km/h})^2$ times a coefficient, and the third is dimensionless squared times a coefficient. The text explains scale matching, but it does not state the units or nondimensionalisation of the coefficients.
+
+\why The score is central to Phase~2 weight selection. Without units or normalisation, it is hard to reproduce or compare across cycle lengths and metrics.
+
+\fix Either nondimensionalise every term, e.g. divide $M_{\mathrm{NO}_{x}}$ by a reference mass and RMSE by a reference speed, or state the units of $\lambda_{\text{RMSE}}$ and $\lambda_{\text{SOC}}$ explicitly and note that $J$ is an engineering score, not a physical quantity.
+
+\subsection*{T7. WLTC claim about the selected SAC seed is over-calibrated}
+
+\loc{Results, WLTC best-seed comparison, lines 583--606; Discussion, lines 47--55 and 108.}
+\problem The manuscript says SAC seed~7 ``dominates the rule-based controller on the two emission-relevant axes simultaneously'' and is ``down to the Euro-6 limit.'' The table shows NOx improves from 147 to 80 mg/km and RMSE improves from 2.29 to 1.76 km/h, but fuel increases from 1376 g to 1730 g.
+
+\why Fuel is directly tied to CO$_2$ and the discussion itself later identifies fuel/CO$_2$ as a blind spot. Calling the result dominant or emission-favourable without qualifying the fuel penalty overstates the environmental conclusion.
+
+\fix Rephrase to: ``SAC seed~7 improves NOx and tracking relative to the rule-based controller while remaining charge-sustaining, but it does so at a 26\% fuel penalty; therefore it is a promising NOx-focused candidate, not an overall emissions-optimal controller.'' Avoid ``dominates'' unless all relevant axes improve.
+
+\subsection*{T8. Euro~6 comparison on the synthetic staircase cycle should be less casual}
+
+\loc{Results, Phase~2 summary and NOx pipeline discussion, lines 328--335 and 481--486.}
+\problem PPO and SAC Phase~2 NOx intensities are 122 and 111 mg/km, while the Euro~6 reference is 80 mg/km. The text says they settle ``just above'' the indicative line at about 5 g per cycle.
+
+\why 111--122 mg/km is approximately 39--53\% above 80 mg/km. The thesis already correctly notes that the staircase cycle is not a certification WLTC; the phrase ``just above'' weakens that caution.
+
+\fix Use a quantitative statement: ``PPO and SAC reduce NOx substantially but remain about 40--50\% above the indicative Euro~6-equivalent line on the staircase cycle.'' Keep the caveat that this comparison is indicative, not regulatory.
+
+\subsection*{T9. Causal mechanism for simultaneous fuel and NOx reduction needs tighter wording}
+
+\loc{Results, operating-point shift discussion, lines 507--510.}
+\problem The sentence beginning ``Assuming that overcharge required...'' is grammatically incomplete and presents a causal mechanism as an assumption. The surrounding text claims fuel and NOx fall together because the Phase~1 policies overcharged the battery at high load.
+
+\why This is a key mechanistic interpretation. It should be stated as evidence-backed if the logs show high-load charging, or qualified if it is an inference.
+
+\fix Replace the fragment with a supported claim such as: ``The logged operating points indicate that this overcharge was produced by additional high-load engine operation, which inflated both fuel use and NOx.'' If the logs do not directly show that, write: ``A plausible interpretation is that...'' and state what evidence would confirm it.
+
+\subsection*{T10. The methodology/results comparison baseline is easy to misread}
+
+\loc{Results, Phase~2 introduction, lines 290--296; Phase~1 best-seed table, lines 260--277; Phase~2 headline table, lines 459--478.}
+\problem The text states that Phase~2 seeds all start from one best Phase~1 checkpoint, but Phase~2 improvement is compared against the Phase~1 10-seed means, not against the transferred best seed. This is explained, but it remains a potential interpretive trap because Table~\texttt{tab:phase1\_best\_seed\_action\_comparison} is presented immediately before Phase~2.
+
+\why For PPO, the transferred best seed already has low NOx (5.57 g), whereas Phase~2 PPO averages 4.94 g. The order-of-magnitude improvement claim is true relative to the 10-seed mean but not relative to that specific transferred PPO seed.
+
+\fix Keep both comparisons explicitly separated in the headline table: one block relative to 10-seed Phase~1 means and one block relative to the transferred checkpoint. This will prevent readers from interpreting every Phase~2 result as an order-of-magnitude improvement over its actual warm-start seed.
+
+\section*{Meaningful editorial and structural findings}
+
+\subsection*{E1. Conclusion is still a placeholder}
+
+\loc{Conclusion chapter, \texttt{src/07\_conclusion.tex}, lines 1--14.}
+\problem The compiled thesis contains ``Conclusion [MISSING]'', ``Summary [MISSING]'', ``Future Work [MISSING]'', and ``Final Remarks [MISSING]'', plus highlighted brainstorming bullets.
+
+\why This is submission-blocking. It also affects the abstract/results/discussion consistency because the final claims are not yet stated.
+
+\fix Write a real conclusion with: (i) one-paragraph answer to the thesis objective, (ii) concise findings for PPO/SAC/TD3, (iii) WLTC caveat and rule-based comparison, (iv) limitations, and (v) future work.
+
+\subsection*{E2. Visible author notes remain in compiled chapters}
+
+\loc{Methodology lines 18 and 198; Results lines 5, 103, and 339; Appendix line 166.}
+\problem Several \texttt{\textbackslash note\{...\}} commands remain in included files and will render highlighted comments in the PDF.
+
+\why These comments are visible draft scaffolding and undermine professionalism. Some also identify unresolved technical issues, such as normalisation and missing Phase~2 hyperparameters.
+
+\fix Resolve each note as prose, move it to comments, or delete it. The appendix note should become a Phase~2 best-hyperparameter/weight table if that information is required.
+
+\subsection*{E3. Highlighted claim in the SAC Phase~1 results should be normal prose or better supported}
+
+\loc{Results, line 208.}
+\problem The sentence ``This is the most sample-efficient learning behaviour among the three algorithms, consistent with the high replay-update ratio.'' is still highlighted with \texttt{\textbackslash hl}. It also infers a causal explanation from the replay-update ratio without an ablation.
+
+\why The visual highlight is a draft marker, and the causal claim is stronger than the evidence shown.
+
+\fix Remove the highlight and qualify the causal interpretation: ``SAC appears most sample-efficient in this experiment; the high replay-update ratio is a plausible contributor, but no ablation isolates this effect.''
+
+\subsection*{E4. Reference-list hygiene has two concrete Biber warnings}
+
+\loc{\texttt{master\_thesis.bib}, lines 484--488 and 1062/1142; Biber log.}
+\problem Biber reports a duplicate entry key \texttt{wang\_energy\_2025} and an invalid ISBN field for \texttt{hofmann\_hybridfahrzeuge\_2023}: \texttt{978-3-662-66893-1 978-3-662-66894-8}.
+
+\why Duplicate keys can silently skip one reference entry. Invalid ISBN fields degrade bibliography quality and can break validation.
+
+\fix Merge or rename the duplicate \texttt{wang\_energy\_2025} entries. Split multiple ISBNs into a valid field format or keep only the relevant ISBN for \texttt{hofmann\_hybridfahrzeuge\_2023}.
+
+\subsection*{E5. Several manuscript statements need external verification or sharper support}
+
+\loc{Introduction lines 3--5 and 41--43; Discussion line 104; Results Euro~6 comparisons.}
+\problem Some regulatory/current-statistics claims are citation-backed but depend on external facts: EU transport GHG shares in 2023, early-2026 market shares, electricity-map snapshot carbon intensities, and exact Euro emission-regulation framing.
+
+\why These are not internally verifiable from the thesis. If any number is outdated or taken from a non-final source, the opening motivation and sustainability analysis could be challenged.
+
+\fix Check the final cited sources and state dates precisely. For the electricity-map carbon intensities, include the snapshot date/time or replace with an annual average if the sustainability argument needs a stable comparison.
+
+\section*{Proofing-sweep items}
+
+The bundled proofing scan was run on the compiled PDF and on the combined source. The PDF scan was dominated by table-of-contents dot leaders; the source scan and manual spot-checks produced the following high-confidence fixes.
+
+\begin{itemize}
+  \item \loc{Introduction, line 5.}\problem Missing space: ``activity,measured''. \fix Use ``activity, measured''.
+  \item \loc{Introduction, line 23.}\problem Spelling: ``unfeasable''. \fix Use ``unfeasible''.
+  \item \loc{Implementation, line 116.}\problem Typos: ``dependy'', ``faciliate''. \fix Use ``depends'' and ``facilitate''.
+  \item \loc{Implementation, line 106.}\problem Typo: ``intitialisation''. \fix Use ``initialisation''.
+  \item \loc{Results, line 103.}\problem Typo in visible note: ``correspodning''. \fix Remove the note or use ``corresponding''.
+  \item \loc{Results, line 150.}\problem Awkward grammar and typo: ``Different to PPO however... plateu''. \fix Rewrite as ``Unlike PPO, however, the runs did not remain stable after reaching the plateau...''.
+  \item \loc{Methodology, line 235.}\problem Multiple copy defects: ``bridge the gap simulation to reality gap'', ``sitation'', ``havent'', ``effectivity''. \fix Rewrite the paragraph as ``This final comparison partly bridges the simulation-to-reality gap by evaluating the learned controller on a more realistic cycle rather than only on synthetic trajectories. It assesses whether the final models generalise to situations not seen during training and compares their effectiveness in speed tracking, NOx reduction, and SOC sustainment with the rule-based solution developed by Frey et al.''
+  \item \loc{Discussion, line 50.}\problem Grammar/typo: ``The WLTC result therefore demonstrate... persiting''. \fix Use ``The WLTC results therefore demonstrate... persistent''.
+  \item \loc{Discussion, line 81.}\problem Grammar/typo: ``Furthermore than the general Phase~2 transfer trategy''. \fix Use ``Beyond the general Phase~2 transfer strategy''.
+\end{itemize}
+
+\section*{Items needing external verification}
+
+\begin{itemize}
+  \item The Euro~6 80 mg/km NOx comparison should be verified against the exact vehicle/fuel category and the cited regulations. The thesis uses it as an indicative benchmark, which is appropriate, but the category should be explicit.
+  \item The claims about EU transport GHG share, passenger-car transport activity, and 2026 combustion-engine market share should be checked against the final cited reports and dated clearly.
+  \item The electricity-carbon-intensity comparison between Spain and Germany should include the exact snapshot date/time or use a stable annual-average source.
+  \item The WLTC rule-based benchmark from Frey et al. should be described with enough details to verify that the isoSOC comparison is fair despite different initial SOC levels.
+\end{itemize}
+
+\section*{Checks with no concrete issue found}
+
+\begin{itemize}
+  \item The RMSE definition is mathematically standard and dimensionally consistent when $v$ is measured in km/h.
+  \item The cumulative NOx equation $M_{\mathrm{NO}_{x},\mathrm{tp}}^{\mathrm{eval}}=\sum_t \dot m_{\mathrm{NO}_{x},\mathrm{tp},t}\Delta t$ is dimensionally consistent if $\dot m$ is in g/s and $\Delta t$ is in seconds.
+  \item The ICE on/off action mapping avoids the invalid 0--900 rpm region as written, provided the fuel command is forced to zero whenever the engine is off.
+  \item No inverse-trig, coordinate-transform, or quadrant branch formulas were found in the manuscript, so there is no arctangent/atan2-style branch issue to flag.
+\end{itemize}
+
+\end{document}
